@@ -1,0 +1,42 @@
+services:
+  nginx:
+    image: nginxproxy/nginx-proxy:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DISABLE_ACCESS_LOGS=1
+      - TRUST_DOWNSTREAM_PROXY=false
+
+  backend:
+    image: recitroc-backend:latest
+    build:
+      context: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/requirements.txt:/app/requirements.txt
+    environment:
+      - VIRTUAL_HOST=recitroc.localhost
+      - VIRTUAL_PORT=8000
+      - VIRTUAL_PATH=/
+    expose:
+      - "8000"
+
+  # frontend:
+  #   image: recitroc-frontend:latest
+  #   build:
+  #     context: ./frontend
+  #   container_name: recitroc-frontend
+  #   restart: unless-stopped
+  #   environment:
+  #     - VIRTUAL_HOST=recitroc.localhost
+  #     - VIRTUAL_PORT=80
+  #   ports:
+  #     - "80"
+  #   depends_on:
+  #     - backend
+
