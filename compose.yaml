@@ -22,7 +22,8 @@ services:
     environment:
       - VIRTUAL_HOST=recitroc.localhost
       - VIRTUAL_PORT=8000
-      - VIRTUAL_PATH=/api
+      - VIRTUAL_PATH=/api/
+      - VIRTUAL_DEST=/
     expose:
       - "8000"
 

@@ -12,6 +12,9 @@ function Navigation() {
             <Link to="/">Home</Link>
           </li>
           <li>
+            <Link to="/swipe">Discover</Link>
+          </li>
+          <li>
             <Link to="/messages">Messages</Link>
           </li>
           <li>
