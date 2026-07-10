@@ -1,5 +1,5 @@
 # Makefile
-.PHONY: help build up down dev logs logs-back logs-front ps shell-back shell-front test
+.PHONY: help build up down dev logs logs-back logs-front logs-db ps shell-back shell-front shell-db test migrate makemigration downgrade
 
 ENV_FILE := .env
 
@@ -15,7 +15,11 @@ help:
 	@echo "  make ps          List containers"
 	@echo "  make shell-back  Open shell in backend container"
 	@echo "  make shell-front Open shell in frontend container"
+	@echo "  make shell-db    Open psql in the postgres container"
 	@echo "  make test        Run backend tests (containerized)"
+	@echo "  make migrate     Apply pending DB migrations (alembic upgrade head)"
+	@echo "  make makemigration m=\"msg\"  Autogenerate a migration from model changes"
+	@echo "  make downgrade   Roll back one DB migration"
 	@echo "  make clean       Remove images (dangerous)"
 
 build:
@@ -50,6 +54,18 @@ shell-front:
 
 test:
 	docker compose exec backend pytest -q
+
+shell-db:
+	docker compose exec db psql -U $${POSTGRES_USER:-recitroc} $${POSTGRES_DB:-recitroc}
+
+migrate:
+	docker compose exec backend alembic upgrade head
+
+makemigration:
+	docker compose exec backend alembic revision --autogenerate -m "$(m)"
+
+downgrade:
+	docker compose exec backend alembic downgrade -1
 
 clean:
 	docker compose down --rmi all --volumes --remove-orphans

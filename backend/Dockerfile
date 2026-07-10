@@ -8,9 +8,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
  && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements first so Docker's layer cache skips the (slow) pip
+# install whenever only application code changed.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Migrations ship inside the image: any container can run
+# `alembic upgrade head` (compose does this on startup).
+COPY alembic.ini .
+COPY ./alembic ./alembic
 COPY ./app ./app
 
 ENV PYTHONUNBUFFERED=1

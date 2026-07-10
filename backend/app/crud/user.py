@@ -1,0 +1,87 @@
+"""CRUD operations for users."""
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
+
+from app.models import User
+from app.schemas import UserCreate, UserUpdate
+
+
+def get(db: Session, user_id: int) -> User | None:
+    """Fetch one user by primary key.
+
+    TEACHING NOTE — Session.get() is the fastest PK lookup: it can even
+    skip the query entirely if the object is already in the session's
+    identity map. Returning `None` (instead of raising) keeps this layer
+    HTTP-agnostic — deciding that "missing" means "404" is the API
+    layer's job.
+    """
+    return db.get(User, user_id)
+
+
+def get_with_items(db: Session, user_id: int) -> User | None:
+    """Fetch one user with their items eagerly loaded.
+
+    TEACHING NOTE — the N+1 problem: lazy loading (the default) would run
+    one extra query per user the moment `.items` is touched. selectinload
+    fetches all related items in a single second query. Make loading
+    explicit where you *know* you need the relationship.
+    """
+    stmt = (
+        select(User)
+        .options(selectinload(User.items))
+        .where(User.id == user_id)
+    )
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def get_by_email(db: Session, email: str) -> User | None:
+    stmt = select(User).where(User.email == email)
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def list_(db: Session, *, limit: int, offset: int) -> tuple[list[User], int]:
+    """Return one page of users plus the total count.
+
+    TEACHING NOTE — never return unbounded lists. A table with a million
+    rows will happily OOM your process. LIMIT/OFFSET + a deterministic
+    ORDER BY (paging without ordering returns rows in arbitrary,
+    unstable order!) is the simplest correct pagination.
+    (Named `list_` because `list` would shadow the Python builtin.)
+    """
+    total = db.execute(select(func.count()).select_from(User)).scalar_one()
+    stmt = select(User).order_by(User.id).limit(limit).offset(offset)
+    users = list(db.execute(stmt).scalars().all())
+    return users, total
+
+
+def create(db: Session, data: UserCreate) -> User:
+    user = User(**data.model_dump())
+    db.add(user)
+    # TEACHING NOTE — commit() writes the transaction; refresh() re-reads
+    # the row so server-generated values (id, created_at from the DB
+    # clock, server_default booleans) are populated on our Python object
+    # before we return it to the client.
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def update(db: Session, user: User, data: UserUpdate) -> User:
+    """Partial update (PATCH semantics).
+
+    TEACHING NOTE — exclude_unset=True is the whole trick: it dumps only
+    the fields the client actually sent, so `{"full_name": null}` clears
+    the name while omitting the key leaves it untouched.
+    """
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(user, field, value)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def delete(db: Session, user: User) -> None:
+    # ORM-level delete so the "delete-orphan" cascade on User.items runs.
+    db.delete(user)
+    db.commit()

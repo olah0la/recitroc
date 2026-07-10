@@ -11,21 +11,51 @@ services:
       - DISABLE_ACCESS_LOGS=1
       - TRUST_DOWNSTREAM_PROXY=false
 
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-recitroc}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-recitroc}
+      - POSTGRES_DB=${POSTGRES_DB:-recitroc}
+    volumes:
+      # Named volume: the data survives `docker compose down` (but not
+      # `make clean`, which passes --volumes).
+      - postgres_data:/var/lib/postgresql/data
+    # No published port: services reach it as db:5432 on the compose
+    # network. Use `make shell-db` for a psql prompt.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recitroc} -d ${POSTGRES_DB:-recitroc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     image: recitroc-backend:latest
     build:
       context: ./backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Apply pending migrations, then start the dev server. The database
+    # schema is therefore always at `head` when the API comes up.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
+      - ./backend/tests:/app/tests
       - ./backend/requirements.txt:/app/requirements.txt
     environment:
       - VIRTUAL_HOST=recitroc.localhost
       - VIRTUAL_PORT=8000
       - VIRTUAL_PATH=/api/
       - VIRTUAL_DEST=/
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-recitroc}:${POSTGRES_PASSWORD:-recitroc}@db:5432/${POSTGRES_DB:-recitroc}
     expose:
       - "8000"
+    depends_on:
+      db:
+        # Waits for the healthcheck, not just the container starting —
+        # otherwise migrations race postgres's boot and lose.
+        condition: service_healthy
 
   frontend:
     image: recitroc-frontend:latest
@@ -45,4 +75,7 @@ services:
       - "3000"
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
 
