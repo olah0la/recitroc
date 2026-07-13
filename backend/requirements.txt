@@ -15,10 +15,17 @@ sqlalchemy>=2.0,<3.0
 # compiling from source; for production images consider building `psycopg2`
 # against the system libpq instead).
 psycopg2-binary>=2.9,<3.0
+# asyncpg is the ASYNCHRONOUS PostgreSQL driver — both stacks coexist:
+# sync endpoints use psycopg2, async endpoints use asyncpg. Same database,
+# two connection pools.
+asyncpg>=0.29,<1.0
 # Alembic manages schema migrations (versioned, repeatable DDL changes).
 alembic>=1.13,<2.0
 
 # --- Testing ---
 pytest>=8.0,<9.0
-# httpx powers FastAPI's TestClient transport.
+# httpx powers FastAPI's TestClient transport AND our async calls to
+# external services (see app/services/geo.py).
 httpx>=0.27,<1.0
+# aiosqlite = async driver for SQLite, used only by tests of the async stack.
+aiosqlite>=0.20,<1.0

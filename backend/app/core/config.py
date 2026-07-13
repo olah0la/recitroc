@@ -32,10 +32,27 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/v1"
 
     # TEACHING NOTE — the URL scheme selects the driver:
-    # "postgresql+psycopg2://" = synchronous driver (this project),
-    # "postgresql+asyncpg://"  = what you would use for an async stack.
+    # "postgresql+psycopg2://" = synchronous driver,
+    # "postgresql+asyncpg://"  = asynchronous driver.
     # `db` is the hostname of the postgres service on the compose network.
     DATABASE_URL: str = "postgresql+psycopg2://recitroc:recitroc@db:5432/recitroc"
+
+    @property
+    def ASYNC_DATABASE_URL(self) -> str:
+        """The same database, addressed through the async driver.
+
+        TEACHING NOTE — deriving instead of duplicating: one env var
+        configures both stacks, so they can never point at different
+        databases by accident.
+        """
+        return self.DATABASE_URL.replace("+psycopg2", "+asyncpg")
+
+    # External services the app talks to. URLs are configuration, not
+    # code: staging can point at a mock, and no deploy is needed if a
+    # provider changes hosts. Open-Meteo is free and needs no API key.
+    GEOCODING_API_URL: str = "https://geocoding-api.open-meteo.com/v1"
+    WEATHER_API_URL: str = "https://api.open-meteo.com/v1"
+    AIR_QUALITY_API_URL: str = "https://air-quality-api.open-meteo.com/v1"
 
 
 @lru_cache

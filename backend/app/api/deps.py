@@ -9,14 +9,17 @@ and — crucially for testing — lets you swap any dependency with
 code.
 """
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Query
+from fastapi import Depends, Query, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.db.async_session import AsyncSessionLocal
 from app.db.session import SessionLocal
+from app.services.geo import GeoClient
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -40,6 +43,38 @@ def get_db() -> Generator[Session, None, None]:
 # `db: Session = Depends(get_db)` in every endpoint, define the annotated
 # type once and reuse it. Same behavior, less noise, one place to change.
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+    """Async twin of get_db, for `async def` endpoints.
+
+    TEACHING NOTE — `async with` replaces try/finally: the session context
+    manager closes the session (returning the asyncpg connection to the
+    pool) however the request ends. FastAPI treats async and sync
+    dependencies uniformly — endpoints just declare what they need.
+    Rule: an `async def` endpoint must use THIS dependency; handing it a
+    sync Session would block the event loop on every query.
+    """
+    async with AsyncSessionLocal() as session:
+        yield session
+
+
+AsyncDbSession = Annotated[AsyncSession, Depends(get_async_db)]
+
+
+def get_geo_client(request: Request) -> GeoClient:
+    """Hand endpoints the shared GeoClient created in the app lifespan.
+
+    TEACHING NOTE — app.state is FastAPI's home for process-wide,
+    lifespan-managed objects (shared HTTP clients, ML models, queues).
+    Exposing it through a dependency (instead of importing a global)
+    keeps endpoints testable: tests override THIS function with a fake
+    and never touch the network.
+    """
+    return request.app.state.geo_client
+
+
+GeoDep = Annotated[GeoClient, Depends(get_geo_client)]
 
 
 @dataclass

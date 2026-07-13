@@ -10,11 +10,13 @@ Layered architecture, dependencies pointing inward only:
 
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 
 from app.api.v1.endpoints import health
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.services.geo import GeoClient
 
 
 @asynccontextmanager
@@ -22,13 +24,23 @@ async def lifespan(app: FastAPI):
     """Startup/shutdown hook.
 
     TEACHING NOTE — everything before `yield` runs once at startup,
-    everything after runs at shutdown (close clients, flush queues...).
+    everything after runs at shutdown. This is where process-wide
+    resources live: we create ONE httpx.AsyncClient for the whole app so
+    every request reuses its connection pool, and `async with` guarantees
+    it is closed (in-flight connections drained) on shutdown. Endpoints
+    reach it through the get_geo_client dependency — never by importing a
+    global.
+
     Note what we do NOT do here: no `Base.metadata.create_all()`. The
     schema is owned by Alembic migrations (`alembic upgrade head` runs
     before the server starts — see compose.yaml). create_all can only
     add tables; it can never alter or migrate existing ones.
     """
-    yield
+    # Always set a timeout on outbound calls: the default is "wait
+    # forever", and a hung provider must not hang YOUR request handlers.
+    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as http_client:
+        app.state.geo_client = GeoClient(http_client)
+        yield
 
 
 app = FastAPI(

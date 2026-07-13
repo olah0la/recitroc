@@ -8,9 +8,10 @@ resource = new file in endpoints/ + one include_router line here.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health, items, users
+from app.api.v1.endpoints import health, items, listings, users
 
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(users.router)
 api_router.include_router(items.router)
+api_router.include_router(listings.router)

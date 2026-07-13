@@ -10,6 +10,7 @@ migration".
 """
 
 from app.models.item import Item
+from app.models.listing import Listing
 from app.models.user import User
 
-__all__ = ["Item", "User"]
+__all__ = ["Item", "Listing", "User"]
