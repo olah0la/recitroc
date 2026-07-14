@@ -77,8 +77,10 @@ class Posting(Base):
     # we pay the external call ONCE per write, not on every read.
     city: Mapped[str] = mapped_column(String(120), index=True)
     country: Mapped[str | None] = mapped_column(String(120))
-    latitude: Mapped[float]
-    longitude: Mapped[float]
+    # Indexed for the nearby query's bounding-box range scans
+    # (see crud/posting.py list_nearby).
+    latitude: Mapped[float] = mapped_column(index=True)
+    longitude: Mapped[float] = mapped_column(index=True)
 
     # Soft on/off switch: pausing a posting (PATCH is_active=false) is not
     # deleting it — inactive postings stay visible to their owner only.

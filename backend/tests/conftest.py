@@ -75,6 +75,15 @@ def async_session_factory(tmp_path) -> async_sessionmaker[AsyncSession]:
 
 
 # --- fake external service --------------------------------------------------
+# Real coordinates for a few cities so proximity tests measure REAL
+# distances: Potsdam is ~27 km from Berlin, Hamburg ~255 km.
+FAKE_CITIES = {
+    "berlin": GeoLocation("Berlin", "Germany", 52.52437, 13.41053),
+    "potsdam": GeoLocation("Potsdam", "Germany", 52.39886, 13.06566),
+    "hamburg": GeoLocation("Hamburg", "Germany", 53.55073, 9.99302),
+}
+
+
 class FakeGeoClient:
     """In-memory stand-in for services.geo.GeoClient.
 
@@ -98,6 +107,8 @@ class FakeGeoClient:
         self.geocode_calls.append(city)
         if city.lower() == "atlantis":  # the city that never resolves
             return None
+        if city.lower() in FAKE_CITIES:
+            return FAKE_CITIES[city.lower()]
         return GeoLocation(name=city, country="Testland", latitude=1.25, longitude=2.5)
 
     async def current_weather(

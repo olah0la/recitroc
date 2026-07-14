@@ -63,6 +63,16 @@ class PostingRead(PostingBase):
     updated_at: datetime
 
 
+class PostingNearbyRead(PostingRead):
+    """PostingRead plus how far away it is from the caller.
+
+    distance_km is computed per request (it depends on who's asking),
+    which is exactly why it's a schema field and not a database column.
+    """
+
+    distance_km: float = Field(examples=[3.4])
+
+
 class MeetupConditions(BaseModel):
     """Live weather + air quality at a posting's location.
 

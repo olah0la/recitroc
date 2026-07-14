@@ -18,43 +18,21 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from app import crud
 from app.api.deps import AsyncDbSession, CurrentUser, GeoDep, Pagination
+from app.api.utils import resolve_city
 from app.models import Posting, PostingKind
 from app.schemas import (
     MeetupConditions,
     Page,
     PostingCreate,
+    PostingNearbyRead,
     PostingRead,
     PostingUpdate,
 )
-from app.services.geo import GeoLocation
+from app.services.geo import haversine_km
 
 router = APIRouter(prefix="/postings", tags=["postings"])
 
 PostingId = Annotated[int, Path(ge=1, description="Numeric ID of the posting")]
-
-
-async def _resolve_city(geo: GeoDep, city: str) -> GeoLocation:
-    """Geocode a city, translating the two failure modes into HTTP errors.
-
-    TEACHING NOTE — distinguish "you sent nonsense" from "upstream broke":
-    - unknown city  -> 422: the request itself cannot be fulfilled,
-    - provider down -> 502 Bad Gateway: WE failed, acting as a gateway.
-      Never let this surface as a raw 500: a 500 says "bug in our code"
-      and hides the real, retryable cause from clients and dashboards.
-    """
-    try:
-        location = await geo.geocode(city)
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Geocoding service is unavailable, try again later.",
-        ) from exc
-    if location is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Could not find a city named {city!r}.",
-        )
-    return location
 
 
 _NOT_FOUND = HTTPException(
@@ -96,7 +74,7 @@ async def create_posting(
     CPU terms), the event loop is off serving other requests. A sync
     version would hold a worker thread hostage for the whole round-trip.
     """
-    location = await _resolve_city(geo, payload.city)
+    location = await resolve_city(geo, payload.city)
     return await crud.posting.create(
         db,
         payload,
@@ -137,6 +115,65 @@ async def list_my_postings(
     )
 
 
+@router.get(
+    "/nearby",
+    response_model=Page[PostingNearbyRead],
+    summary="Postings near me, nearest first",
+)
+async def list_nearby_postings(
+    current_user: CurrentUser,
+    db: AsyncDbSession,
+    page: Pagination,
+    radius_km: Annotated[
+        float, Query(gt=0, le=500, description="Search radius in kilometers")
+    ] = 10,
+    kind: Annotated[
+        PostingKind | None, Query(description="Only needs, or only offers")
+    ] = None,
+) -> Page[PostingNearbyRead]:
+    """Active postings within radius_km of MY stored location.
+
+    The caller's own postings are excluded — you can't swap with
+    yourself. Requires a location: set one with PUT /users/me/location.
+    """
+    if current_user.latitude is None or current_user.longitude is None:
+        # 409, not 422: the request is perfectly well-formed — it's the
+        # account's STATE (no location yet) that blocks it.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Set your location first (PUT /users/me/location).",
+        )
+    postings, total = await crud.posting.list_nearby(
+        db,
+        latitude=current_user.latitude,
+        longitude=current_user.longitude,
+        radius_km=radius_km,
+        exclude_owner=current_user.email,
+        limit=page.limit,
+        offset=page.offset,
+        kind=kind,
+    )
+    # The exact, human-facing distance is computed here in Python — only
+    # one page of rows ever reaches this loop (see crud list_nearby for
+    # why SQL uses an approximation instead).
+    items = [
+        PostingNearbyRead(
+            **PostingRead.model_validate(p).model_dump(),
+            distance_km=round(
+                haversine_km(
+                    current_user.latitude,
+                    current_user.longitude,
+                    p.latitude,
+                    p.longitude,
+                ),
+                2,
+            ),
+        )
+        for p in postings
+    ]
+    return Page(items=items, total=total, limit=page.limit, offset=page.offset)
+
+
 @router.get("/{posting_id}", response_model=PostingRead, summary="Get a posting")
 async def get_posting(posting_id: PostingId, db: AsyncDbSession) -> PostingRead:
     """Public read of one ACTIVE posting.
@@ -163,7 +200,7 @@ async def update_posting(
     posting = await _get_own_or_404(db, posting_id, current_user.email)
     values = payload.model_dump(exclude_unset=True)
     if "city" in values:
-        location = await _resolve_city(geo, values["city"])
+        location = await resolve_city(geo, values["city"])
         values.update(
             latitude=location.latitude,
             longitude=location.longitude,

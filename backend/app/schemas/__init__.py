@@ -3,15 +3,24 @@ from app.schemas.common import Page
 from app.schemas.posting import (
     MeetupConditions,
     PostingCreate,
+    PostingNearbyRead,
     PostingRead,
     PostingUpdate,
 )
-from app.schemas.user import UserCreate, UserRead, UserReadWithPostings, UserUpdate
+from app.schemas.user import (
+    LocationUpdate,
+    UserCreate,
+    UserRead,
+    UserReadWithPostings,
+    UserUpdate,
+)
 
 __all__ = [
+    "LocationUpdate",
     "MeetupConditions",
     "Page",
     "PostingCreate",
+    "PostingNearbyRead",
     "PostingRead",
     "PostingUpdate",
     "Token",

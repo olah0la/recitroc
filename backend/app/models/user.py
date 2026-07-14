@@ -38,6 +38,15 @@ class User(Base):
     first_name: Mapped[str | None] = mapped_column(String(255))
     last_name: Mapped[str | None] = mapped_column(String(255))
 
+    # Home location, resolved from a city name at write time (same
+    # geocode-once pattern as postings). Nullable: a user exists before
+    # they tell us where they are; anything location-based (the nearby
+    # feed, the future swipe deck) requires these to be set first.
+    city: Mapped[str | None] = mapped_column(String(120))
+    country: Mapped[str | None] = mapped_column(String(120))
+    latitude: Mapped[float | None]
+    longitude: Mapped[float | None]
+
     # TEACHING NOTE — only the bcrypt HASH is ever stored (see
     # core/security.py); the plaintext password exists solely in the
     # request body of signup/login. This column must never appear in a

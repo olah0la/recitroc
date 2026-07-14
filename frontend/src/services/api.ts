@@ -25,6 +25,8 @@ export interface AuthUser {
   username: string | null
   first_name: string | null
   last_name: string | null
+  city: string | null
+  country: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -150,4 +152,30 @@ export async function fetchMyPostings(kind?: PostingKind): Promise<Posting[]> {
   const query = kind ? `?kind=${kind}` : ''
   const page = await apiFetch<{ items: Posting[] }>(`/postings/mine${query}`)
   return page.items
+}
+
+/** A nearby posting carries its distance from the current user. */
+export interface NearbyPosting extends Posting {
+  distance_km: number
+}
+
+export async function fetchNearbyPostings(
+  radiusKm = 10,
+  kind?: PostingKind,
+): Promise<NearbyPosting[]> {
+  const params = new URLSearchParams({ radius_km: String(radiusKm) })
+  if (kind) params.set('kind', kind)
+  const page = await apiFetch<{ items: NearbyPosting[] }>(
+    `/postings/nearby?${params}`,
+  )
+  return page.items
+}
+
+/** Set the user's home location from a city name (geocoded server-side). */
+export async function setMyLocation(city: string): Promise<AuthUser> {
+  return apiFetch<AuthUser>('/users/me/location', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ city }),
+  })
 }

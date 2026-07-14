@@ -10,8 +10,17 @@ from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import EmailStr
 
 from app import crud
-from app.api.deps import DbSession, Pagination
-from app.schemas import Page, UserCreate, UserRead, UserReadWithPostings, UserUpdate
+from app.api.deps import AsyncDbSession, CurrentUser, DbSession, GeoDep, Pagination
+from app.api.utils import resolve_city
+from app.models import User
+from app.schemas import (
+    LocationUpdate,
+    Page,
+    UserCreate,
+    UserRead,
+    UserReadWithPostings,
+    UserUpdate,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -63,6 +72,36 @@ def create_user(payload: UserCreate, db: DbSession) -> UserRead:
         )
     _ensure_username_free(db, payload.username)
     return crud.user.create(db, payload)
+
+
+@router.put("/me/location", response_model=UserRead, summary="Set my location")
+async def set_my_location(
+    payload: LocationUpdate,
+    current_user: CurrentUser,
+    db: AsyncDbSession,
+    geo: GeoDep,
+) -> UserRead:
+    """Set the authenticated user's home location from a city name.
+
+    TEACHING NOTE — an ASYNC endpoint inside an otherwise-sync router:
+    what forces async here is the external geocoding call, same as
+    postings. Also note the object handoff: `current_user` was loaded by
+    the (sync) auth dependency, but every session tracks its own objects,
+    so the ASYNC session re-fetches the row it is about to modify — by
+    primary key, which is cheap — rather than adopting a foreign object.
+    PUT (not PATCH) because the location is replaced wholesale.
+    """
+    location = await resolve_city(geo, payload.city)
+    user = await db.get(User, current_user.email)
+    # The geocoder's canonical name is stored, not the raw input:
+    # "berlin" and "BERLIN " both come back as "Berlin".
+    user.city = location.name
+    user.country = location.country
+    user.latitude = location.latitude
+    user.longitude = location.longitude
+    await db.commit()
+    await db.refresh(user)
+    return user
 
 
 @router.get("", response_model=Page[UserRead], summary="List users")

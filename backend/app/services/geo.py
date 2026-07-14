@@ -8,6 +8,7 @@ requests meanwhile. This is the single strongest reason to reach for
 `async def` in a web app.
 """
 
+import math
 from dataclasses import dataclass
 
 import httpx
@@ -40,6 +41,28 @@ AQI_BANDS = [
     (80, "poor"),
     (100, "very poor"),
 ]
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance between two points, in kilometers.
+
+    TEACHING NOTE — this is the EXACT distance, computed in Python for
+    the handful of rows a page returns. The SQL side (crud/posting.py)
+    deliberately uses a cruder, arithmetic-only approximation instead:
+    it only needs to ORDER candidates, must run on both postgres and
+    SQLite (whose builds often lack trig functions), and touches every
+    candidate row. Precision where it's shown, portability where it's
+    hot — that split is the design.
+    """
+    earth_radius_km = 6371.0088
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = phi2 - phi1
+    dlambda = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    return 2 * earth_radius_km * math.asin(math.sqrt(a))
 
 
 # TEACHING NOTE — frozen dataclasses as return types: the rest of the app

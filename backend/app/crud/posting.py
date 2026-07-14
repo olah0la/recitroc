@@ -10,11 +10,17 @@ part needs no await. The await marks exactly where the event loop may
 switch to serving another request.
 """
 
+import math
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Posting, PostingKind
 from app.schemas import PostingCreate
+
+# One degree of latitude is ~111.32 km everywhere; a degree of longitude
+# shrinks with the cosine of the latitude.
+KM_PER_DEGREE = 111.32
 
 
 async def get(db: AsyncSession, posting_id: int) -> Posting | None:
@@ -44,6 +50,67 @@ async def list_by_owner(
     ).scalar_one()
 
     stmt = stmt.order_by(Posting.id).limit(limit).offset(offset)
+    postings = list((await db.execute(stmt)).scalars().all())
+    return postings, total
+
+
+async def list_nearby(
+    db: AsyncSession,
+    *,
+    latitude: float,
+    longitude: float,
+    radius_km: float,
+    exclude_owner: str,
+    limit: int,
+    offset: int,
+    kind: PostingKind | None = None,
+) -> tuple[list[Posting], int]:
+    """Active postings within radius_km, nearest first, excluding one owner.
+
+    TEACHING NOTE — proximity search without PostGIS, in two stages:
+    1. BOUNDING BOX: convert the radius into degree spans and filter with
+       two BETWEENs. These are plain range predicates on the indexed
+       latitude/longitude columns — the cheap cut that spares the math
+       below from scanning the whole table.
+    2. EQUIRECTANGULAR distance: within a city-sized box the Earth is
+       flat enough that sqrt(Δlat² + (Δlng·cos(lat))²) is within ~1% of
+       the true distance. We compare SQUARED distances (monotonic, so
+       ordering and radius checks don't need the sqrt) and — crucially —
+       cos(lat) is a Python-computed CONSTANT, so the SQL is pure
+       arithmetic and runs identically on postgres and SQLite, whose
+       builds often ship without trig functions.
+    The exact haversine distance shown to clients is computed in Python
+    on the one page of rows returned (services/geo.py haversine_km).
+    """
+    delta_lat = radius_km / KM_PER_DEGREE
+    # cos(lat) → 0 near the poles would make the longitude span explode;
+    # clamping keeps the box finite (and nobody swaps sofas at 89.9°N).
+    cos_lat = max(math.cos(math.radians(latitude)), 0.01)
+    delta_lng = radius_km / (KM_PER_DEGREE * cos_lat)
+
+    # Squared distance in "latitude degrees", comparable against the
+    # squared radius in the same unit.
+    d_lat = Posting.latitude - latitude
+    d_lng = (Posting.longitude - longitude) * cos_lat
+    distance_sq = d_lat * d_lat + d_lng * d_lng
+    radius_sq = (radius_km / KM_PER_DEGREE) ** 2
+
+    stmt = select(Posting).where(
+        Posting.is_active,
+        Posting.owner_email != exclude_owner,
+        Posting.latitude.between(latitude - delta_lat, latitude + delta_lat),
+        Posting.longitude.between(longitude - delta_lng, longitude + delta_lng),
+        # The box is square; this trims its corners to the circle.
+        distance_sq <= radius_sq,
+    )
+    if kind is not None:
+        stmt = stmt.where(Posting.kind == kind)
+
+    total = (
+        await db.execute(select(func.count()).select_from(stmt.subquery()))
+    ).scalar_one()
+
+    stmt = stmt.order_by(distance_sq).limit(limit).offset(offset)
     postings = list((await db.execute(stmt)).scalars().all())
     return postings, total
 

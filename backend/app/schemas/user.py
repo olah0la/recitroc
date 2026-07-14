@@ -75,6 +75,17 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class LocationUpdate(BaseModel):
+    """Payload for PUT /users/me/location — a city name, nothing more.
+
+    The coordinates are resolved server-side (same geocode-at-write
+    pattern as postings); a client can never claim to be somewhere the
+    geocoder doesn't put it.
+    """
+
+    city: str = Field(min_length=1, max_length=120, examples=["Berlin"])
+
+
 class UserRead(UserBase):
     """Shape returned to clients. Server-generated fields appear here."""
 
@@ -83,6 +94,13 @@ class UserRead(UserBase):
     # requiring a dict. This is what allows endpoints to simply
     # `return db_user` while declaring `response_model=UserRead`.
     model_config = ConfigDict(from_attributes=True)
+
+    # City granularity only — the stored coordinates deliberately never
+    # appear in ANY response schema. Distances are served pre-computed
+    # (see PostingNearbyRead.distance_km); exact home coordinates are
+    # nobody else's business.
+    city: str | None = None
+    country: str | None = None
 
     is_active: bool
     created_at: datetime

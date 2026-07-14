@@ -1,7 +1,12 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { createPosting, type PostingCategory, type PostingKind } from '../services/api'
+import {
+  createPosting,
+  setMyLocation,
+  type PostingCategory,
+  type PostingKind,
+} from '../services/api'
 
 // Two-step onboarding: first what you NEED from the community, then what
 // you can OFFER it. Each step creates one posting; both steps are
@@ -35,6 +40,7 @@ function OnboardingPage() {
   const [city, setCity] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [locationSet, setLocationSet] = useState(false)
   const { user, initializing } = useAuth()
   const navigate = useNavigate()
 
@@ -75,6 +81,17 @@ function OnboardingPage() {
           .filter(Boolean),
         city,
       })
+      // The first saved posting also pins the user's home location, which
+      // the nearby feed requires. Best-effort: a failure here shouldn't
+      // block onboarding.
+      if (!locationSet && !user?.city) {
+        try {
+          await setMyLocation(city)
+          setLocationSet(true)
+        } catch {
+          // ignore — the user can set a location later
+        }
+      }
       advance()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
