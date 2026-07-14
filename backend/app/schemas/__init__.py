@@ -7,6 +7,7 @@ from app.schemas.posting import (
     PostingRead,
     PostingUpdate,
 )
+from app.schemas.swipe import SwipeCreate, SwipeResult
 from app.schemas.user import (
     LocationUpdate,
     UserCreate,
@@ -17,6 +18,8 @@ from app.schemas.user import (
 
 __all__ = [
     "LocationUpdate",
+    "SwipeCreate",
+    "SwipeResult",
     "MeetupConditions",
     "Page",
     "PostingCreate",

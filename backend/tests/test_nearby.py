@@ -8,9 +8,9 @@ Potsdam is ~27 km from Berlin; Hamburg ~255 km.
 
 import pytest
 from fastapi.testclient import TestClient
+from tests.conftest import FAKE_CITIES
 
 from app.services.geo import haversine_km
-from tests.conftest import FAKE_CITIES
 
 
 def make_user(client: TestClient, email: str, city: str | None = None) -> dict:
@@ -54,7 +54,9 @@ def test_haversine_known_distance():
     # Zero distance to itself, symmetry both ways.
     assert haversine_km(52.5, 13.4, 52.5, 13.4) == 0
     assert distance == pytest.approx(
-        haversine_km(hamburg.latitude, hamburg.longitude, berlin.latitude, berlin.longitude)
+        haversine_km(
+            hamburg.latitude, hamburg.longitude, berlin.latitude, berlin.longitude
+        )
     )
 
 
@@ -103,7 +105,9 @@ def seed_neighborhood(client: TestClient) -> dict:
 
 def test_nearby_sorts_by_distance_and_respects_radius(client: TestClient):
     me = seed_neighborhood(client)
-    body = client.get("/v1/postings/nearby", params={"radius_km": 50}, headers=me).json()
+    body = client.get(
+        "/v1/postings/nearby", params={"radius_km": 50}, headers=me
+    ).json()
     # Berlin (~0 km) first, both Potsdam postings (~27 km) next;
     # Hamburg (~255 km) is outside the radius.
     assert body["total"] == 3
@@ -130,7 +134,9 @@ def test_nearby_wider_radius_includes_hamburg(client: TestClient):
 def test_nearby_excludes_my_own_postings(client: TestClient):
     me = seed_neighborhood(client)
     create_posting(client, me, "Berlin", title="My own sofa")
-    body = client.get("/v1/postings/nearby", params={"radius_km": 50}, headers=me).json()
+    body = client.get(
+        "/v1/postings/nearby", params={"radius_km": 50}, headers=me
+    ).json()
     assert all(p["owner_email"] != "me@example.com" for p in body["items"])
     assert body["total"] == 3
 

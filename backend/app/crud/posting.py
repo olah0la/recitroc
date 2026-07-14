@@ -15,7 +15,7 @@ import math
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Posting, PostingKind
+from app.models import Posting, PostingKind, Swipe
 from app.schemas import PostingCreate
 
 # One degree of latitude is ~111.32 km everywhere; a degree of longitude
@@ -64,8 +64,12 @@ async def list_nearby(
     limit: int,
     offset: int,
     kind: PostingKind | None = None,
+    exclude_swiped_by: str | None = None,
 ) -> tuple[list[Posting], int]:
     """Active postings within radius_km, nearest first, excluding one owner.
+
+    With `exclude_swiped_by`, postings that user has already swiped are
+    filtered out too — this variant IS the swipe deck.
 
     TEACHING NOTE — proximity search without PostGIS, in two stages:
     1. BOUNDING BOX: convert the radius into degree spans and filter with
@@ -105,6 +109,16 @@ async def list_nearby(
     )
     if kind is not None:
         stmt = stmt.where(Posting.kind == kind)
+    if exclude_swiped_by is not None:
+        # TEACHING NOTE — an ANTI-JOIN via NOT EXISTS: "no swipe row of
+        # mine points at this posting". The correlated subquery never
+        # fetches swipe rows; the database only checks their existence,
+        # using the (swiper_email, posting_id) unique index.
+        already_swiped = select(Swipe.id).where(
+            Swipe.posting_id == Posting.id,
+            Swipe.swiper_email == exclude_swiped_by,
+        )
+        stmt = stmt.where(~already_swiped.exists())
 
     total = (
         await db.execute(select(func.count()).select_from(stmt.subquery()))

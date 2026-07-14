@@ -10,6 +10,14 @@ migration".
 """
 
 from app.models.posting import Posting, PostingCategory, PostingKind
+from app.models.swipe import Swipe, SwipeDirection
 from app.models.user import User
 
-__all__ = ["Posting", "PostingCategory", "PostingKind", "User"]
+__all__ = [
+    "Posting",
+    "PostingCategory",
+    "PostingKind",
+    "Swipe",
+    "SwipeDirection",
+    "User",
+]

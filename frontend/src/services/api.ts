@@ -179,3 +179,40 @@ export async function setMyLocation(city: string): Promise<AuthUser> {
     body: JSON.stringify({ city }),
   })
 }
+
+// --- swipes -------------------------------------------------------------------
+
+export type SwipeDirection = 'like' | 'pass'
+
+export interface SwipeResult {
+  matched: boolean
+  match_id: number | null
+}
+
+/** The next nearby offers to swipe on (already-swiped ones never return). */
+export async function fetchDeck(
+  radiusKm = 10,
+  limit = 10,
+): Promise<NearbyPosting[]> {
+  const params = new URLSearchParams({
+    radius_km: String(radiusKm),
+    limit: String(limit),
+  })
+  return apiFetch<NearbyPosting[]>(`/swipes/deck?${params}`)
+}
+
+export async function postSwipe(
+  postingId: number,
+  direction: SwipeDirection,
+): Promise<SwipeResult> {
+  return apiFetch<SwipeResult>('/swipes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ posting_id: postingId, direction }),
+  })
+}
+
+/** Rewind: withdraw the verdict so the posting re-enters the deck. */
+export async function deleteSwipe(postingId: number): Promise<void> {
+  return apiFetch<void>(`/swipes/${postingId}`, { method: 'DELETE' })
+}
