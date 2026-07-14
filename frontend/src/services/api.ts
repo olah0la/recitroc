@@ -105,3 +105,49 @@ export async function login(email: string, password: string): Promise<string> {
 export async function fetchMe(): Promise<AuthUser> {
   return apiFetch<AuthUser>('/auth/me')
 }
+
+// --- postings ---------------------------------------------------------------
+
+export type PostingKind = 'offer' | 'need'
+export type PostingCategory = 'goods' | 'service'
+
+/** Shape of a posting as returned by the backend (schemas/posting.py). */
+export interface Posting {
+  id: number
+  owner_email: string
+  kind: PostingKind
+  category: PostingCategory
+  title: string
+  description: string | null
+  tags: string[]
+  city: string
+  country: string | null
+  latitude: number
+  longitude: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PostingInput {
+  kind: PostingKind
+  category: PostingCategory
+  title: string
+  description?: string
+  tags?: string[]
+  city: string
+}
+
+export async function createPosting(input: PostingInput): Promise<Posting> {
+  return apiFetch<Posting>('/postings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function fetchMyPostings(kind?: PostingKind): Promise<Posting[]> {
+  const query = kind ? `?kind=${kind}` : ''
+  const page = await apiFetch<{ items: Posting[] }>(`/postings/mine${query}`)
+  return page.items
+}

@@ -1,26 +1,22 @@
 from app.schemas.auth import Token
 from app.schemas.common import Page
-from app.schemas.item import ItemCreate, ItemRead, ItemUpdate
-from app.schemas.listing import (
-    ListingCreate,
-    ListingRead,
-    ListingUpdate,
+from app.schemas.posting import (
     MeetupConditions,
+    PostingCreate,
+    PostingRead,
+    PostingUpdate,
 )
-from app.schemas.user import UserCreate, UserRead, UserReadWithItems, UserUpdate
+from app.schemas.user import UserCreate, UserRead, UserReadWithPostings, UserUpdate
 
 __all__ = [
-    "ItemCreate",
-    "ItemRead",
-    "ItemUpdate",
-    "ListingCreate",
-    "ListingRead",
-    "ListingUpdate",
     "MeetupConditions",
     "Page",
+    "PostingCreate",
+    "PostingRead",
+    "PostingUpdate",
     "Token",
     "UserCreate",
     "UserRead",
-    "UserReadWithItems",
+    "UserReadWithPostings",
     "UserUpdate",
 ]

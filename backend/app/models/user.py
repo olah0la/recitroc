@@ -9,10 +9,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 # TEACHING NOTE — TYPE_CHECKING avoids a circular import: user.py and
-# item.py reference each other's classes, but only in type hints. At
-# runtime SQLAlchemy resolves the string "Item" via its class registry.
+# posting.py reference each other's classes, but only in type hints. At
+# runtime SQLAlchemy resolves the string "Posting" via its class registry.
 if TYPE_CHECKING:
-    from app.models.item import Item
+    from app.models.posting import Posting
 
 
 class User(Base):
@@ -64,12 +64,12 @@ class User(Base):
     )
 
     # TEACHING NOTE — relationship() is pure ORM: it creates no column.
-    # The foreign key lives on items.owner_email; this attribute just lets
-    # us navigate user.items / item.owner in Python.
-    # cascade="all, delete-orphan" makes deleting a user delete their items
-    # at the ORM level (mirrored by ondelete="CASCADE" on the FK for deletes
-    # that bypass the ORM).
-    items: Mapped[list["Item"]] = relationship(
+    # The foreign key lives on postings.owner_email; this attribute just
+    # lets us navigate user.postings / posting.owner in Python.
+    # cascade="all, delete-orphan" makes deleting a user delete their
+    # postings at the ORM level (mirrored by ondelete="CASCADE" on the FK
+    # for deletes that bypass the ORM).
+    postings: Mapped[list["Posting"]] = relationship(
         back_populates="owner",
         cascade="all, delete-orphan",
     )

@@ -9,8 +9,7 @@ Forgetting this import is the #1 cause of "Alembic generated an empty
 migration".
 """
 
-from app.models.item import Item
-from app.models.listing import Listing
+from app.models.posting import Posting, PostingCategory, PostingKind
 from app.models.user import User
 
-__all__ = ["Item", "Listing", "User"]
+__all__ = ["Posting", "PostingCategory", "PostingKind", "User"]

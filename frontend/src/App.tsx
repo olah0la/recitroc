@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import AboutPage from './pages/AboutPage'
 import MessagesPage from './pages/MessagesPage'
+import OnboardingPage from './pages/OnboardingPage'
 import SwipePage from './pages/SwipePage'
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/swipe" element={<SwipePage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/messages" element={<MessagesPage />} />

@@ -85,14 +85,32 @@ def test_list_users_rejects_out_of_range_limit(client: TestClient):
     assert response.status_code == 422
 
 
-def test_get_user_includes_items(client: TestClient):
+def _login_headers(client: TestClient, email: str, password: str) -> dict:
+    token = client.post(
+        "/v1/auth/login", data={"username": email, "password": password}
+    ).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _create_posting(client: TestClient, headers: dict, title: str) -> dict:
+    response = client.post(
+        "/v1/postings",
+        json={"kind": "offer", "category": "goods", "title": title, "city": "Berlin"},
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_get_user_includes_postings(client: TestClient):
     user = create_user(client)
-    client.post(f"/v1/users/{user['email']}/items", json={"title": "Lamp"})
+    headers = _login_headers(client, user["email"], PAYLOAD["password"])
+    _create_posting(client, headers, "Lamp")
 
     response = client.get(f"/v1/users/{user['email']}")
     assert response.status_code == 200
     body = response.json()
-    assert [item["title"] for item in body["items"]] == ["Lamp"]
+    assert [posting["title"] for posting in body["postings"]] == ["Lamp"]
 
 
 def test_get_missing_user_returns_404(client: TestClient):
@@ -143,15 +161,14 @@ def test_patch_to_taken_username_returns_409(client: TestClient):
     assert response.status_code == 409
 
 
-def test_delete_user_returns_204_and_cascades_to_items(client: TestClient):
+def test_delete_user_returns_204_and_cascades_to_postings(client: TestClient):
     user = create_user(client)
-    item = client.post(
-        f"/v1/users/{user['email']}/items", json={"title": "Lamp"}
-    ).json()
+    headers = _login_headers(client, user["email"], PAYLOAD["password"])
+    posting = _create_posting(client, headers, "Lamp")
 
     response = client.delete(f"/v1/users/{user['email']}")
     assert response.status_code == 204
 
     assert client.get(f"/v1/users/{user['email']}").status_code == 404
-    # The ORM cascade removed the orphaned item as well.
-    assert client.get(f"/v1/items/{item['id']}").status_code == 404
+    # The ORM cascade removed the orphaned posting as well.
+    assert client.get(f"/v1/postings/{posting['id']}").status_code == 404

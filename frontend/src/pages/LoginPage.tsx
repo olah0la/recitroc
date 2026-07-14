@@ -23,14 +23,16 @@ function LoginPage() {
     try {
       if (mode === 'login') {
         await login(email, password)
+        navigate('/swipe')
       } else {
         await signup(email, password, {
           username: username || undefined,
           firstName: firstName || undefined,
           lastName: lastName || undefined,
         })
+        // New members set up their first needs/offers before browsing.
+        navigate('/onboarding')
       }
-      navigate('/swipe')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {

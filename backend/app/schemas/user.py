@@ -13,7 +13,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.schemas.item import ItemRead
+from app.schemas.posting import PostingRead
 
 
 class UserBase(BaseModel):
@@ -89,8 +89,9 @@ class UserRead(UserBase):
     updated_at: datetime
 
 
-class UserReadWithItems(UserRead):
-    """UserRead plus the user's items — used only where we deliberately
-    load the relationship (see the GET /users/{email} endpoint)."""
+class UserReadWithPostings(UserRead):
+    """UserRead plus the user's ACTIVE postings — used only where we
+    deliberately load the relationship (see the GET /users/{email}
+    endpoint). Paused postings are the owner's business, not the public's."""
 
-    items: list[ItemRead] = []
+    postings: list[PostingRead] = []

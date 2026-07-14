@@ -11,15 +11,7 @@ from pydantic import EmailStr
 
 from app import crud
 from app.api.deps import DbSession, Pagination
-from app.schemas import (
-    ItemCreate,
-    ItemRead,
-    Page,
-    UserCreate,
-    UserRead,
-    UserReadWithItems,
-    UserUpdate,
-)
+from app.schemas import Page, UserCreate, UserRead, UserReadWithPostings, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -91,10 +83,10 @@ def list_users(db: DbSession, page: Pagination) -> Page[UserRead]:
     )
 
 
-@router.get("/{email}", response_model=UserReadWithItems, summary="Get a user")
-def get_user(email: UserEmail, db: DbSession) -> UserReadWithItems:
-    """Fetch a single user, including their items."""
-    user = crud.user.get_with_items(db, email)
+@router.get("/{email}", response_model=UserReadWithPostings, summary="Get a user")
+def get_user(email: UserEmail, db: DbSession) -> UserReadWithPostings:
+    """Fetch a single user, including their active postings."""
+    user = crud.user.get_with_postings(db, email)
     if user is None:
         # The CRUD layer returns None; translating that into an HTTP 404
         # is exactly the API layer's job.
@@ -114,7 +106,7 @@ def update_user(email: UserEmail, payload: UserUpdate, db: DbSession) -> UserRea
     PATCH correctly.
 
     Changing the email here rewrites the user's PRIMARY KEY: the database
-    cascades the new value into items.owner_email (onupdate="CASCADE"),
+    cascades the new value into postings.owner_email (onupdate="CASCADE"),
     and the resource's URL changes — clients should follow the email in
     the response body.
     """
@@ -142,7 +134,7 @@ def update_user(email: UserEmail, payload: UserUpdate, db: DbSession) -> UserRea
     summary="Delete a user",
 )
 def delete_user(email: UserEmail, db: DbSession) -> None:
-    """Delete a user and (via cascade) all of their items.
+    """Delete a user and (via cascade) all of their postings.
 
     TEACHING NOTE — DELETE is *idempotent* in effect (the row is gone
     either way), but we still 404 on a missing user: it tells clients
@@ -154,30 +146,3 @@ def delete_user(email: UserEmail, db: DbSession) -> None:
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     crud.user.delete(db, user)
-
-
-# ---------------------------------------------------------------------------
-# Nested route: items always belong to a user, and the URL encodes that.
-# ---------------------------------------------------------------------------
-@router.post(
-    "/{email}/items",
-    response_model=ItemRead,
-    status_code=status.HTTP_201_CREATED,
-    tags=["items"],  # shown under "items" in the docs despite living here
-    summary="Create an item owned by a user",
-)
-def create_item_for_user(
-    email: UserEmail, payload: ItemCreate, db: DbSession
-) -> ItemRead:
-    """Create an item owned by the given user.
-
-    TEACHING NOTE — path + body together: `email` comes from the URL,
-    `payload` from the JSON body. The owner is taken from the URL, so a
-    client can never create an item on someone else's behalf by lying in
-    the body.
-    """
-    if crud.user.get(db, email) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-    return crud.item.create(db, payload, owner_email=email)

@@ -36,9 +36,7 @@ def upgrade() -> None:
     op.add_column(
         "users", sa.Column("first_name", sa.String(length=255), nullable=True)
     )
-    op.add_column(
-        "users", sa.Column("last_name", sa.String(length=255), nullable=True)
-    )
+    op.add_column("users", sa.Column("last_name", sa.String(length=255), nullable=True))
     op.create_index(op.f("ix_users_username"), "users", ["username"], unique=True)
 
     # Split "First Rest Of Name" on the FIRST space; a single-word name

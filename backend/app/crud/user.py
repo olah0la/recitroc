@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.security import hash_password, verify_password
-from app.models import User
+from app.models import Posting, User
 from app.schemas import UserCreate, UserUpdate
 
 
@@ -27,15 +27,22 @@ def get_by_username(db: Session, username: str) -> User | None:
     return db.execute(stmt).scalar_one_or_none()
 
 
-def get_with_items(db: Session, email: str) -> User | None:
-    """Fetch one user with their items eagerly loaded.
+def get_with_postings(db: Session, email: str) -> User | None:
+    """Fetch one user with their ACTIVE postings eagerly loaded.
 
     TEACHING NOTE — the N+1 problem: lazy loading (the default) would run
-    one extra query per user the moment `.items` is touched. selectinload
-    fetches all related items in a single second query. Make loading
-    explicit where you *know* you need the relationship.
+    one extra query per user the moment `.postings` is touched.
+    selectinload fetches all related postings in a single second query.
+    Make loading explicit where you *know* you need the relationship.
+    `.and_()` filters the loaded rows: this is the PUBLIC view of a user,
+    and paused postings are visible to their owner only (via
+    /postings/mine).
     """
-    stmt = select(User).options(selectinload(User.items)).where(User.email == email)
+    stmt = (
+        select(User)
+        .options(selectinload(User.postings.and_(Posting.is_active)))
+        .where(User.email == email)
+    )
     return db.execute(stmt).scalar_one_or_none()
 
 
