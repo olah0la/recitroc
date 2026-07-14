@@ -113,7 +113,9 @@ class FakeGeoClient:
             return None
         return GeoLocation(name=city, country="Testland", latitude=1.25, longitude=2.5)
 
-    async def current_weather(self, latitude: float, longitude: float) -> CurrentWeather:
+    async def current_weather(
+        self, latitude: float, longitude: float
+    ) -> CurrentWeather:
         self._maybe_fail()
         return CurrentWeather(temperature_c=21.0, wind_speed_kmh=10.0, weather_code=2)
 

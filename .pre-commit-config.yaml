@@ -12,6 +12,11 @@ repos:
     rev: 5.13.2
     hooks:
     -   id: isort
+        # Without the black profile, isort and black rewrap multi-line
+        # imports differently and undo each other forever. `app` must be
+        # declared first-party explicitly: isort runs from the repo root
+        # and cannot see that backend/app is our package.
+        args: ["--profile=black", "--project=app"]
 -   repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.4
     hooks:

@@ -49,6 +49,9 @@ services:
       - VIRTUAL_PATH=/api/
       - VIRTUAL_DEST=/
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-recitroc}:${POSTGRES_PASSWORD:-recitroc}@db:5432/${POSTGRES_DB:-recitroc}
+      # Falls back to the backend's built-in dev default when unset; set a
+      # real SECRET_KEY in .env for any shared environment.
+      - SECRET_KEY=${SECRET_KEY:-dev-only-secret-do-not-use-in-production}
     expose:
       - "8000"
     depends_on:
@@ -78,4 +81,3 @@ services:
 
 volumes:
   postgres_data:
-

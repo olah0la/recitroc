@@ -3,6 +3,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.security import hash_password, verify_password
 from app.models import User
 from app.schemas import UserCreate, UserUpdate
 
@@ -27,11 +28,7 @@ def get_with_items(db: Session, user_id: int) -> User | None:
     fetches all related items in a single second query. Make loading
     explicit where you *know* you need the relationship.
     """
-    stmt = (
-        select(User)
-        .options(selectinload(User.items))
-        .where(User.id == user_id)
-    )
+    stmt = select(User).options(selectinload(User.items)).where(User.id == user_id)
     return db.execute(stmt).scalar_one_or_none()
 
 
@@ -56,7 +53,14 @@ def list_(db: Session, *, limit: int, offset: int) -> tuple[list[User], int]:
 
 
 def create(db: Session, data: UserCreate) -> User:
-    user = User(**data.model_dump())
+    # TEACHING NOTE — the plaintext password is swapped for its hash at
+    # the last possible moment before persistence; it never touches the
+    # ORM object. `exclude={"password"}` matters: User has no `password`
+    # attribute, and passing one would raise a TypeError.
+    user = User(
+        **data.model_dump(exclude={"password"}),
+        hashed_password=hash_password(data.password),
+    )
     db.add(user)
     # TEACHING NOTE — commit() writes the transaction; refresh() re-reads
     # the row so server-generated values (id, created_at from the DB
@@ -85,3 +89,21 @@ def delete(db: Session, user: User) -> None:
     # ORM-level delete so the "delete-orphan" cascade on User.items runs.
     db.delete(user)
     db.commit()
+
+
+def authenticate(db: Session, email: str, password: str) -> User | None:
+    """Return the user if email+password are valid, else None.
+
+    TEACHING NOTE — one None for every failure mode (unknown email, wrong
+    password, deactivated account). The API layer turns it into a single
+    generic 401; distinguishing the cases in the response would let an
+    attacker probe which emails have accounts ("user enumeration").
+    """
+    user = get_by_email(db, email)
+    if user is None:
+        return None
+    if not verify_password(password, user.hashed_password):
+        return None
+    if not user.is_active:
+        return None
+    return user

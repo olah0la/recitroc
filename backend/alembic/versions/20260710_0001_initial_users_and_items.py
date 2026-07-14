@@ -14,11 +14,11 @@ schema of any environment. Rules of thumb:
   is a diff tool, not a mind reader (it can't detect column *renames* —
   it sees a drop + an add, which would destroy data).
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0001"

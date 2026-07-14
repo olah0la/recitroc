@@ -33,7 +33,13 @@ WMO_WEATHER_CODES = {
 }
 
 # European AQI bands as published by the EEA.
-AQI_BANDS = [(20, "good"), (40, "fair"), (60, "moderate"), (80, "poor"), (100, "very poor")]
+AQI_BANDS = [
+    (20, "good"),
+    (40, "fair"),
+    (60, "moderate"),
+    (80, "poor"),
+    (100, "very poor"),
+]
 
 
 # TEACHING NOTE — frozen dataclasses as return types: the rest of the app
@@ -107,7 +113,9 @@ class GeoClient:
             longitude=hit["longitude"],
         )
 
-    async def current_weather(self, latitude: float, longitude: float) -> CurrentWeather:
+    async def current_weather(
+        self, latitude: float, longitude: float
+    ) -> CurrentWeather:
         response = await self._http.get(
             f"{settings.WEATHER_API_URL}/forecast",
             params={

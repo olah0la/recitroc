@@ -1,3 +1,4 @@
+from app.schemas.auth import Token
 from app.schemas.common import Page
 from app.schemas.item import ItemCreate, ItemRead, ItemUpdate
 from app.schemas.listing import (
@@ -17,6 +18,7 @@ __all__ = [
     "ListingUpdate",
     "MeetupConditions",
     "Page",
+    "Token",
     "UserCreate",
     "UserRead",
     "UserReadWithItems",

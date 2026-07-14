@@ -5,14 +5,13 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.core.config import settings
-from app.db.base import Base
-
 # TEACHING NOTE — this import looks unused, but it is load-bearing:
 # importing app.models registers every table on Base.metadata. Without it,
 # autogenerate sees an "empty" application and emits drop_table for
 # everything. (The `# noqa: F401` tells the linter it's intentional.)
 import app.models  # noqa: F401
+from app.core.config import settings
+from app.db.base import Base
 
 config = context.config
 

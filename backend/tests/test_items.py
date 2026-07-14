@@ -5,14 +5,18 @@ from fastapi.testclient import TestClient
 
 def seed(client: TestClient) -> tuple[dict, dict]:
     ada = client.post(
-        "/v1/users", json={"email": "ada@example.com"}
+        "/v1/users",
+        json={"email": "ada@example.com", "password": "correct-horse-battery"},
     ).json()
     bob = client.post(
-        "/v1/users", json={"email": "bob@example.com"}
+        "/v1/users",
+        json={"email": "bob@example.com", "password": "correct-horse-battery"},
     ).json()
     for owner, titles in ((ada, ["Vintage lamp", "Desk"]), (bob, ["Floor lamp"])):
         for title in titles:
-            response = client.post(f"/v1/users/{owner['id']}/items", json={"title": title})
+            response = client.post(
+                f"/v1/users/{owner['id']}/items", json={"title": title}
+            )
             assert response.status_code == 201
     return ada, bob
 

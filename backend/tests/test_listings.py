@@ -7,7 +7,6 @@ the suite is fast, deterministic, and runs offline.
 """
 
 from fastapi.testclient import TestClient
-
 from tests.conftest import FakeGeoClient
 
 PAYLOAD = {"title": "Espresso machine", "description": "Trade me!", "city": "Berlin"}

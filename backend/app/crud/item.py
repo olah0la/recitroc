@@ -36,9 +36,7 @@ def list_(
 
     # Count the *filtered* set by wrapping the same statement in a
     # subquery — keeping the count and the page guaranteed-consistent.
-    total = db.execute(
-        select(func.count()).select_from(stmt.subquery())
-    ).scalar_one()
+    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
 
     stmt = stmt.order_by(Item.id).limit(limit).offset(offset)
     items = list(db.execute(stmt).scalars().all())

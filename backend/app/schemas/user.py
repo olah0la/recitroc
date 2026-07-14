@@ -30,9 +30,18 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """Payload for POST /users. `id`/timestamps are server-generated, so a
-    client must not be able to send them — hence they don't exist here."""
+    """Payload for POST /users and /auth/signup. `id`/timestamps are
+    server-generated, so a client must not be able to send them — hence
+    they don't exist here.
 
+    TEACHING NOTE — the password lives ONLY on the Create schema: it is
+    write-only by construction. There is no `password` on UserRead, and
+    the model stores only `hashed_password`, so no code path can echo a
+    plaintext password back. max_length=72 matches bcrypt's input limit
+    (it silently truncates beyond 72 bytes — better to reject up front).
+    """
+
+    password: str = Field(min_length=8, max_length=72)
     is_active: bool = True
 
 

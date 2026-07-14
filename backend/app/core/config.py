@@ -47,6 +47,17 @@ class Settings(BaseSettings):
         """
         return self.DATABASE_URL.replace("+psycopg2", "+asyncpg")
 
+    # --- Auth ---
+    # TEACHING NOTE — the SECRET_KEY signs every JWT: whoever knows it can
+    # mint a token for ANY user. The default below exists only so `make dev`
+    # works out of the box; any real deployment MUST override it via the
+    # environment (generate one with: openssl rand -hex 32). Rotating the
+    # key instantly invalidates all outstanding tokens — sometimes that's
+    # a feature.
+    SECRET_KEY: str = "dev-only-secret-do-not-use-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day; short-lived by design
+
     # External services the app talks to. URLs are configuration, not
     # code: staging can point at a mock, and no deploy is needed if a
     # provider changes hosts. Open-Meteo is free and needs no API key.

@@ -13,12 +13,15 @@ from collections.abc import AsyncGenerator, Generator
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Query, Request
+from fastapi import Depends, HTTPException, Query, Request, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.core.security import decode_access_token
 from app.db.async_session import AsyncSessionLocal
 from app.db.session import SessionLocal
+from app.models import User
 from app.services.geo import GeoClient
 
 
@@ -75,6 +78,46 @@ def get_geo_client(request: Request) -> GeoClient:
 
 
 GeoDep = Annotated[GeoClient, Depends(get_geo_client)]
+
+
+# TEACHING NOTE — OAuth2PasswordBearer does two jobs: (1) at request time
+# it extracts the token from the `Authorization: Bearer ...` header (401 if
+# absent), and (2) it documents the auth scheme in OpenAPI, which is what
+# puts the "Authorize" button on /docs. The tokenUrl is deliberately
+# RELATIVE ("v1/..." not "/v1/...") so the docs UI resolves it against the
+# server base URL *including* the /api root_path stripped by nginx-proxy.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="v1/auth/login")
+
+
+def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)], db: DbSession
+) -> User:
+    """Resolve the bearer token to a live User row, or fail with 401.
+
+    TEACHING NOTE — a dependency using other dependencies: FastAPI chains
+    them (oauth2_scheme → get_db → this) per request. Any endpoint that
+    declares CurrentUser is thereby protected; there is no middleware or
+    decorator to forget.
+    """
+    credentials_error = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        # RFC 6750: a 401 to a bearer-authenticated API should say which
+        # scheme it expects.
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    subject = decode_access_token(token)
+    if subject is None or not subject.isdigit():
+        raise credentials_error
+    user = db.get(User, int(subject))
+    # The token may outlive the account: always re-check the row exists
+    # and is still active — a signed token is proof of *past* login only.
+    if user is None or not user.is_active:
+        raise credentials_error
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 @dataclass

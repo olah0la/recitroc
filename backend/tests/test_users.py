@@ -8,7 +8,11 @@ refactor internals freely without touching them.
 
 from fastapi.testclient import TestClient
 
-PAYLOAD = {"email": "ada@example.com", "full_name": "Ada Lovelace"}
+PAYLOAD = {
+    "email": "ada@example.com",
+    "full_name": "Ada Lovelace",
+    "password": "correct-horse-battery",
+}
 
 
 def create_user(client: TestClient, **overrides) -> dict:
@@ -24,6 +28,10 @@ def test_create_user_returns_201_with_server_generated_fields(client: TestClient
     # Server-generated fields must exist even though the client never sent them.
     assert body["id"] == 1
     assert "created_at" in body
+    # response_model=UserRead filters the output: credential material can
+    # never leak, in ANY form.
+    assert "password" not in body
+    assert "hashed_password" not in body
 
 
 def test_create_user_rejects_invalid_email_with_422(client: TestClient):

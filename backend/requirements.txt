@@ -22,6 +22,16 @@ asyncpg>=0.29,<1.0
 # Alembic manages schema migrations (versioned, repeatable DDL changes).
 alembic>=1.13,<2.0
 
+# --- Auth ---
+# bcrypt used directly for password hashing (we skip passlib: it is
+# unmaintained and breaks with bcrypt >= 4.1).
+bcrypt>=4.1,<5.0
+# pyjwt signs/verifies the JSON Web Tokens issued at login.
+pyjwt>=2.8,<3.0
+# Required by OAuth2PasswordRequestForm — the OAuth2 password flow sends
+# credentials as form data, and FastAPI needs this package to parse forms.
+python-multipart>=0.0.9,<1.0
+
 # --- Testing ---
 pytest>=8.0,<9.0
 # httpx powers FastAPI's TestClient transport AND our async calls to

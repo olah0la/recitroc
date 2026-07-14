@@ -30,6 +30,13 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     full_name: Mapped[str | None] = mapped_column(String(255))
 
+    # TEACHING NOTE — only the bcrypt HASH is ever stored (see
+    # core/security.py); the plaintext password exists solely in the
+    # request body of signup/login. This column must never appear in a
+    # Read schema — response_model filtering is what keeps it from
+    # leaking (see the TEACHING NOTE on list_users in endpoints/users.py).
+    hashed_password: Mapped[str] = mapped_column(String(255))
+
     # server_default puts the default in the DDL, so rows inserted by *any*
     # client (psql, another service, a data migration) still get a value —
     # a plain Python `default=` would only apply to inserts made through

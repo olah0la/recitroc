@@ -121,3 +121,47 @@ button[type="submit"] {
 button[type="submit"]:hover {
   background-color: #4fa8c5;
 }
+
+button[type="submit"]:disabled {
+  background-color: #a9d8e8;
+  cursor: default;
+}
+
+.form-error {
+  color: #c0392b;
+  margin-bottom: 1rem;
+}
+
+.form-switch {
+  margin-top: 1.5rem;
+  color: #555;
+}
+
+.form-switch button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #4fa8c5;
+  font-size: 1rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.nav-user {
+  color: #61dafb;
+  margin-right: 0.5rem;
+}
+
+.nav-logout {
+  background: none;
+  border: 1px solid #61dafb;
+  border-radius: 4px;
+  color: #61dafb;
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+}
+
+.nav-logout:hover {
+  background-color: #61dafb;
+  color: #282c34;
+}
