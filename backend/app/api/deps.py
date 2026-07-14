@@ -106,10 +106,11 @@ def get_current_user(
         # scheme it expects.
         headers={"WWW-Authenticate": "Bearer"},
     )
+    # The token's `sub` claim is the user's email — their primary key.
     subject = decode_access_token(token)
-    if subject is None or not subject.isdigit():
+    if subject is None:
         raise credentials_error
-    user = db.get(User, int(subject))
+    user = db.get(User, subject)
     # The token may outlive the account: always re-check the row exists
     # and is still active — a signed token is proof of *past* login only.
     if user is None or not user.is_active:

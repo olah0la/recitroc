@@ -22,12 +22,16 @@ class Item(Base):
     description: Mapped[str | None] = mapped_column(Text)
 
     # TEACHING NOTE — the ForeignKey targets the *table.column* name
-    # ("users.id"), not the Python class. ondelete="CASCADE" tells postgres
-    # itself to remove orphaned items if a user row is deleted outside the
-    # ORM. index=True matters: we filter items by owner constantly, and
-    # postgres does NOT index FK columns automatically.
-    owner_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    # ("users.email"), not the Python class. ondelete="CASCADE" tells
+    # postgres itself to remove orphaned items if a user row is deleted
+    # outside the ORM, and onupdate="CASCADE" rewrites this column if the
+    # referenced email (the users PK, a natural key) ever changes — the
+    # price of keying on a mutable real-world value. index=True matters:
+    # we filter items by owner constantly, and postgres does NOT index FK
+    # columns automatically.
+    owner_email: Mapped[str] = mapped_column(
+        ForeignKey("users.email", ondelete="CASCADE", onupdate="CASCADE"),
+        index=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(

@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
+from pydantic import EmailStr
 
 from app import crud
 from app.api.deps import DbSession, Pagination
@@ -19,11 +20,11 @@ def list_items(
     page: Pagination,
     # TEACHING NOTE — optional query params: a `| None = None` default
     # makes the filter opt-in. Try it in the docs UI:
-    #   GET /api/v1/items?q=lamp&owner_id=1&limit=5
+    #   GET /api/v1/items?q=lamp&owner_email=ada@example.com&limit=5
     # `min_length=1` stops `?q=` (empty string) from being treated as a
     # real search term.
-    owner_id: Annotated[
-        int | None, Query(ge=1, description="Only items owned by this user")
+    owner_email: Annotated[
+        EmailStr | None, Query(description="Only items owned by this user")
     ] = None,
     q: Annotated[
         str | None,
@@ -32,7 +33,7 @@ def list_items(
 ) -> Page[ItemRead]:
     """List items, optionally filtered by owner and/or a title search."""
     items, total = crud.item.list_(
-        db, limit=page.limit, offset=page.offset, owner_id=owner_id, q=q
+        db, limit=page.limit, offset=page.offset, owner_email=owner_email, q=q
     )
     return Page(
         items=[ItemRead.model_validate(i) for i in items],

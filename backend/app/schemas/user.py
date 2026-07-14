@@ -20,17 +20,27 @@ class UserBase(BaseModel):
     """Fields common to reading and writing. Others inherit from this."""
 
     # EmailStr rejects malformed addresses at the edge with a clear 422,
-    # before any business logic runs.
+    # before any business logic runs. The email doubles as the user's
+    # primary key — it IS the resource identifier in /users/{email} URLs.
     email: EmailStr
+    # Optional public handle; uniqueness is enforced by the database and
+    # surfaced as a 409 by the endpoints. min_length=3 stops one-letter
+    # handles; the pattern keeps it URL- and @mention-safe.
+    username: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=50,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+        examples=["ada_l"],
+    )
     # Field() attaches validation rules AND documentation — both show up
     # in the generated OpenAPI docs.
-    full_name: str | None = Field(
-        default=None, max_length=255, examples=["Ada Lovelace"]
-    )
+    first_name: str | None = Field(default=None, max_length=255, examples=["Ada"])
+    last_name: str | None = Field(default=None, max_length=255, examples=["Lovelace"])
 
 
 class UserCreate(UserBase):
-    """Payload for POST /users and /auth/signup. `id`/timestamps are
+    """Payload for POST /users and /auth/signup. Timestamps are
     server-generated, so a client must not be able to send them — hence
     they don't exist here.
 
@@ -46,16 +56,22 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    """Payload for PATCH /users/{id}.
+    """Payload for PATCH /users/{email}.
 
     TEACHING NOTE — every field is optional: a PATCH sends only what
     changes. In the CRUD layer, `model_dump(exclude_unset=True)` is what
     distinguishes "field omitted" (don't touch it) from "field set to
-    None" (clear it).
+    None" (clear it). Note that PATCHing the email rewrites the user's
+    PRIMARY KEY — the onupdate="CASCADE" on items.owner_email is what
+    keeps their items attached.
     """
 
     email: EmailStr | None = None
-    full_name: str | None = Field(default=None, max_length=255)
+    username: str | None = Field(
+        default=None, min_length=3, max_length=50, pattern=r"^[A-Za-z0-9_.-]+$"
+    )
+    first_name: str | None = Field(default=None, max_length=255)
+    last_name: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
 
 
@@ -63,12 +79,11 @@ class UserRead(UserBase):
     """Shape returned to clients. Server-generated fields appear here."""
 
     # TEACHING NOTE — from_attributes=True lets Pydantic read data straight
-    # from ORM objects (user.id, user.email, ...) instead of requiring a
-    # dict. This is what allows endpoints to simply `return db_user` while
-    # declaring `response_model=UserRead`.
+    # from ORM objects (user.email, user.username, ...) instead of
+    # requiring a dict. This is what allows endpoints to simply
+    # `return db_user` while declaring `response_model=UserRead`.
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -76,6 +91,6 @@ class UserRead(UserBase):
 
 class UserReadWithItems(UserRead):
     """UserRead plus the user's items — used only where we deliberately
-    load the relationship (see the GET /users/{id} endpoint)."""
+    load the relationship (see the GET /users/{email} endpoint)."""
 
     items: list[ItemRead] = []

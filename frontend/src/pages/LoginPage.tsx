@@ -8,7 +8,9 @@ function LoginPage() {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [fullName, setFullName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [username, setUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const { login, signup } = useAuth()
@@ -22,7 +24,11 @@ function LoginPage() {
       if (mode === 'login') {
         await login(email, password)
       } else {
-        await signup(email, password, fullName || undefined)
+        await signup(email, password, {
+          username: username || undefined,
+          firstName: firstName || undefined,
+          lastName: lastName || undefined,
+        })
       }
       navigate('/swipe')
     } catch (err) {
@@ -42,16 +48,41 @@ function LoginPage() {
       <h1>{mode === 'login' ? 'Login' : 'Create account'}</h1>
       <form onSubmit={handleSubmit} className="login-form">
         {mode === 'signup' && (
-          <div className="form-group">
-            <label htmlFor="fullName">Name:</label>
-            <input
-              type="text"
-              id="fullName"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              maxLength={255}
-            />
-          </div>
+          <>
+            <div className="form-group">
+              <label htmlFor="firstName">First name:</label>
+              <input
+                type="text"
+                id="firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                maxLength={255}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="lastName">Last name:</label>
+              <input
+                type="text"
+                id="lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                maxLength={255}
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="username">Username (optional):</label>
+              <input
+                type="text"
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                minLength={3}
+                maxLength={50}
+                pattern="[A-Za-z0-9_.\-]+"
+                title="Letters, numbers, dots, dashes and underscores"
+              />
+            </div>
+          </>
         )}
         <div className="form-group">
           <label htmlFor="email">Email:</label>

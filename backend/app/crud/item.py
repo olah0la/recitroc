@@ -16,7 +16,7 @@ def list_(
     *,
     limit: int,
     offset: int,
-    owner_id: int | None = None,
+    owner_email: str | None = None,
     q: str | None = None,
 ) -> tuple[list[Item], int]:
     """List items with optional filters.
@@ -27,8 +27,8 @@ def list_(
     SQL — this is what makes the query injection-safe.
     """
     stmt = select(Item)
-    if owner_id is not None:
-        stmt = stmt.where(Item.owner_id == owner_id)
+    if owner_email is not None:
+        stmt = stmt.where(Item.owner_email == owner_email)
     if q:
         # ilike = case-insensitive LIKE (PostgreSQL). Fine for a demo;
         # at scale you would reach for postgres full-text search.
@@ -43,10 +43,10 @@ def list_(
     return items, total
 
 
-def create(db: Session, data: ItemCreate, owner_id: int) -> Item:
-    # owner_id comes from the URL path (via the endpoint), never from the
-    # request body — see the note on ItemCreate.
-    item = Item(**data.model_dump(), owner_id=owner_id)
+def create(db: Session, data: ItemCreate, owner_email: str) -> Item:
+    # owner_email comes from the URL path (via the endpoint), never from
+    # the request body — see the note on ItemCreate.
+    item = Item(**data.model_dump(), owner_email=owner_email)
     db.add(item)
     db.commit()
     db.refresh(item)

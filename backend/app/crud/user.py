@@ -8,19 +8,26 @@ from app.models import User
 from app.schemas import UserCreate, UserUpdate
 
 
-def get(db: Session, user_id: int) -> User | None:
-    """Fetch one user by primary key.
+def get(db: Session, email: str) -> User | None:
+    """Fetch one user by primary key (their email).
 
     TEACHING NOTE — Session.get() is the fastest PK lookup: it can even
     skip the query entirely if the object is already in the session's
-    identity map. Returning `None` (instead of raising) keeps this layer
-    HTTP-agnostic — deciding that "missing" means "404" is the API
-    layer's job.
+    identity map. Since the email IS the primary key, the old separate
+    get-by-email query disappeared: identity lookup and email lookup are
+    now the same operation. Returning `None` (instead of raising) keeps
+    this layer HTTP-agnostic — deciding that "missing" means "404" is
+    the API layer's job.
     """
-    return db.get(User, user_id)
+    return db.get(User, email)
 
 
-def get_with_items(db: Session, user_id: int) -> User | None:
+def get_by_username(db: Session, username: str) -> User | None:
+    stmt = select(User).where(User.username == username)
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def get_with_items(db: Session, email: str) -> User | None:
     """Fetch one user with their items eagerly loaded.
 
     TEACHING NOTE — the N+1 problem: lazy loading (the default) would run
@@ -28,12 +35,7 @@ def get_with_items(db: Session, user_id: int) -> User | None:
     fetches all related items in a single second query. Make loading
     explicit where you *know* you need the relationship.
     """
-    stmt = select(User).options(selectinload(User.items)).where(User.id == user_id)
-    return db.execute(stmt).scalar_one_or_none()
-
-
-def get_by_email(db: Session, email: str) -> User | None:
-    stmt = select(User).where(User.email == email)
+    stmt = select(User).options(selectinload(User.items)).where(User.email == email)
     return db.execute(stmt).scalar_one_or_none()
 
 
@@ -47,7 +49,7 @@ def list_(db: Session, *, limit: int, offset: int) -> tuple[list[User], int]:
     (Named `list_` because `list` would shadow the Python builtin.)
     """
     total = db.execute(select(func.count()).select_from(User)).scalar_one()
-    stmt = select(User).order_by(User.id).limit(limit).offset(offset)
+    stmt = select(User).order_by(User.email).limit(limit).offset(offset)
     users = list(db.execute(stmt).scalars().all())
     return users, total
 
@@ -63,9 +65,9 @@ def create(db: Session, data: UserCreate) -> User:
     )
     db.add(user)
     # TEACHING NOTE — commit() writes the transaction; refresh() re-reads
-    # the row so server-generated values (id, created_at from the DB
-    # clock, server_default booleans) are populated on our Python object
-    # before we return it to the client.
+    # the row so server-generated values (created_at from the DB clock,
+    # server_default booleans) are populated on our Python object before
+    # we return it to the client.
     db.commit()
     db.refresh(user)
     return user
@@ -75,7 +77,7 @@ def update(db: Session, user: User, data: UserUpdate) -> User:
     """Partial update (PATCH semantics).
 
     TEACHING NOTE — exclude_unset=True is the whole trick: it dumps only
-    the fields the client actually sent, so `{"full_name": null}` clears
+    the fields the client actually sent, so `{"first_name": null}` clears
     the name while omitting the key leaves it untouched.
     """
     for field, value in data.model_dump(exclude_unset=True).items():
@@ -99,7 +101,7 @@ def authenticate(db: Session, email: str, password: str) -> User | None:
     generic 401; distinguishing the cases in the response would let an
     attacker probe which emails have accounts ("user enumeration").
     """
-    user = get_by_email(db, email)
+    user = get(db, email)
     if user is None:
         return None
     if not verify_password(password, user.hashed_password):

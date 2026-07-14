@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import * as api from '../services/api'
-import type { AuthUser } from '../services/api'
+import type { AuthUser, SignupProfile } from '../services/api'
 
 interface AuthContextValue {
   /** The logged-in user, or null. Check `initializing` before trusting null. */
@@ -15,7 +15,11 @@ interface AuthContextValue {
   /** True while the stored token from a previous visit is being validated. */
   initializing: boolean
   login: (email: string, password: string) => Promise<void>
-  signup: (email: string, password: string, fullName?: string) => Promise<void>
+  signup: (
+    email: string,
+    password: string,
+    profile?: SignupProfile,
+  ) => Promise<void>
   logout: () => void
 }
 
@@ -47,8 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signup = useCallback(
-    async (email: string, password: string, fullName?: string) => {
-      await api.signup(email, password, fullName)
+    async (email: string, password: string, profile?: SignupProfile) => {
+      await api.signup(email, password, profile)
       // The signup response has no token by design — log in right after.
       const token = await api.login(email, password)
       api.setToken(token)

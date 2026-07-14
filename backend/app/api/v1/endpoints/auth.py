@@ -12,12 +12,13 @@ there, never inside business endpoints.
 
 from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+
 from app import crud
 from app.api.deps import CurrentUser, DbSession
 from app.core.security import create_access_token
 from app.schemas import Token, UserCreate, UserRead
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -36,10 +37,15 @@ def signup(payload: UserCreate, db: DbSession) -> UserRead:
     UserRead — the token is NOT included; the client logs in next. That
     keeps this endpoint idempotent-ish to retry and the login path single.
     """
-    if crud.user.get_by_email(db, payload.email):
+    if crud.user.get(db, payload.email):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"A user with email {payload.email!r} already exists.",
+        )
+    if payload.username and crud.user.get_by_username(db, payload.username):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Username {payload.username!r} is already taken.",
         )
     return crud.user.create(db, payload)
 
@@ -63,7 +69,9 @@ def login(
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return Token(access_token=create_access_token(subject=str(user.id)))
+    # The subject is the user's email — the primary key — so resolving a
+    # token back to a user is a single PK lookup (see deps.get_current_user).
+    return Token(access_token=create_access_token(subject=user.email))
 
 
 @router.get("/me", response_model=UserRead, summary="Get the current user")

@@ -13,11 +13,11 @@ class ItemBase(BaseModel):
 
 
 class ItemCreate(ItemBase):
-    """Payload for POST /users/{user_id}/items.
+    """Payload for POST /users/{email}/items.
 
-    Note there is no `owner_id` field: the owner comes from the URL path.
-    Never let a request body claim a resource belongs to someone else when
-    the URL already establishes ownership.
+    Note there is no `owner_email` field: the owner comes from the URL
+    path. Never let a request body claim a resource belongs to someone
+    else when the URL already establishes ownership.
     """
 
 
@@ -30,5 +30,5 @@ class ItemRead(ItemBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    owner_id: int
+    owner_email: str
     created_at: datetime

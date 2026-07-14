@@ -19,16 +19,24 @@ class User(Base):
     __tablename__ = "users"
 
     # TEACHING NOTE — SQLAlchemy 2.0 typed declarative style:
-    # `Mapped[int]` declares the *Python* type (your IDE/mypy understand it),
+    # `Mapped[str]` declares the *Python* type (your IDE/mypy understand it),
     # `mapped_column(...)` declares the *database* column. `Mapped[str | None]`
     # automatically makes the column nullable.
-    id: Mapped[int] = mapped_column(primary_key=True)
+    #
+    # The email is a NATURAL primary key (an attribute with real-world
+    # meaning) rather than a SURROGATE one (an opaque auto-increment id).
+    # Trade-off to know: a natural PK is copied into every referencing row
+    # (items.owner_email) and changing it means rewriting them all — which
+    # is why the FK on items declares onupdate="CASCADE".
+    email: Mapped[str] = mapped_column(String(255), primary_key=True)
 
     # unique=True adds a UNIQUE constraint (enforced by the DATABASE — the
-    # only race-proof way to guarantee uniqueness). index=True speeds up the
-    # lookup-by-email query in crud/user.py.
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    full_name: Mapped[str | None] = mapped_column(String(255))
+    # only race-proof way to guarantee uniqueness). A nullable unique
+    # column is fine: SQL treats NULLs as distinct, so any number of users
+    # may leave the username unset.
+    username: Mapped[str | None] = mapped_column(String(50), unique=True, index=True)
+    first_name: Mapped[str | None] = mapped_column(String(255))
+    last_name: Mapped[str | None] = mapped_column(String(255))
 
     # TEACHING NOTE — only the bcrypt HASH is ever stored (see
     # core/security.py); the plaintext password exists solely in the
@@ -56,8 +64,8 @@ class User(Base):
     )
 
     # TEACHING NOTE — relationship() is pure ORM: it creates no column.
-    # The foreign key lives on items.owner_id; this attribute just lets us
-    # navigate user.items / item.owner in Python.
+    # The foreign key lives on items.owner_email; this attribute just lets
+    # us navigate user.items / item.owner in Python.
     # cascade="all, delete-orphan" makes deleting a user delete their items
     # at the ORM level (mirrored by ondelete="CASCADE" on the FK for deletes
     # that bypass the ORM).
@@ -67,4 +75,4 @@ class User(Base):
     )
 
     def __repr__(self) -> str:
-        return f"User(id={self.id!r}, email={self.email!r})"
+        return f"User(email={self.email!r}, username={self.username!r})"

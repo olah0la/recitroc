@@ -28,7 +28,9 @@ function Navigation() {
           </li>
           {user ? (
             <li>
-              <span className="nav-user">{user.full_name || user.email}</span>{' '}
+              <span className="nav-user">
+                {user.username || user.first_name || user.email}
+              </span>{' '}
               <button type="button" className="nav-logout" onClick={handleLogout}>
                 Logout
               </button>

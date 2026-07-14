@@ -2,33 +2,30 @@
 
 from fastapi.testclient import TestClient
 
+ADA = "ada@example.com"
+BOB = "bob@example.com"
 
-def seed(client: TestClient) -> tuple[dict, dict]:
-    ada = client.post(
-        "/v1/users",
-        json={"email": "ada@example.com", "password": "correct-horse-battery"},
-    ).json()
-    bob = client.post(
-        "/v1/users",
-        json={"email": "bob@example.com", "password": "correct-horse-battery"},
-    ).json()
-    for owner, titles in ((ada, ["Vintage lamp", "Desk"]), (bob, ["Floor lamp"])):
+
+def seed(client: TestClient) -> None:
+    for email in (ADA, BOB):
+        response = client.post(
+            "/v1/users", json={"email": email, "password": "correct-horse-battery"}
+        )
+        assert response.status_code == 201
+    for owner, titles in ((ADA, ["Vintage lamp", "Desk"]), (BOB, ["Floor lamp"])):
         for title in titles:
-            response = client.post(
-                f"/v1/users/{owner['id']}/items", json={"title": title}
-            )
+            response = client.post(f"/v1/users/{owner}/items", json={"title": title})
             assert response.status_code == 201
-    return ada, bob
 
 
 def test_create_item_for_missing_user_returns_404(client: TestClient):
-    response = client.post("/v1/users/999/items", json={"title": "Lamp"})
+    response = client.post("/v1/users/nobody@example.com/items", json={"title": "Lamp"})
     assert response.status_code == 404
 
 
 def test_create_item_rejects_empty_title(client: TestClient):
     seed(client)
-    response = client.post("/v1/users/1/items", json={"title": ""})
+    response = client.post(f"/v1/users/{ADA}/items", json={"title": ""})
     assert response.status_code == 422
 
 
@@ -39,10 +36,10 @@ def test_list_items_unfiltered(client: TestClient):
 
 
 def test_list_items_filters_by_owner(client: TestClient):
-    ada, _ = seed(client)
-    body = client.get("/v1/items", params={"owner_id": ada["id"]}).json()
+    seed(client)
+    body = client.get("/v1/items", params={"owner_email": ADA}).json()
     assert body["total"] == 2
-    assert all(item["owner_id"] == ada["id"] for item in body["items"])
+    assert all(item["owner_email"] == ADA for item in body["items"])
 
 
 def test_list_items_search_is_case_insensitive(client: TestClient):
@@ -53,8 +50,8 @@ def test_list_items_search_is_case_insensitive(client: TestClient):
 
 
 def test_filters_combine(client: TestClient):
-    ada, _ = seed(client)
-    body = client.get("/v1/items", params={"q": "lamp", "owner_id": ada["id"]}).json()
+    seed(client)
+    body = client.get("/v1/items", params={"q": "lamp", "owner_email": ADA}).json()
     assert body["total"] == 1
     assert body["items"][0]["title"] == "Vintage lamp"
 

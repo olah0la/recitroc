@@ -18,14 +18,22 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-/** Shape of a user as returned by the backend (schemas/user.py UserRead). */
+/** Shape of a user as returned by the backend (schemas/user.py UserRead).
+ * The email is the primary key — there is no numeric id. */
 export interface AuthUser {
-  id: number
   email: string
-  full_name: string | null
+  username: string | null
+  first_name: string | null
+  last_name: string | null
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export interface SignupProfile {
+  username?: string
+  firstName?: string
+  lastName?: string
 }
 
 export class ApiError extends Error {
@@ -67,12 +75,18 @@ export async function apiFetch<T>(
 export async function signup(
   email: string,
   password: string,
-  fullName?: string,
+  profile: SignupProfile = {},
 ): Promise<AuthUser> {
   return apiFetch<AuthUser>('/auth/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, full_name: fullName || null }),
+    body: JSON.stringify({
+      email,
+      password,
+      username: profile.username || null,
+      first_name: profile.firstName || null,
+      last_name: profile.lastName || null,
+    }),
   })
 }
 

@@ -10,7 +10,9 @@ from fastapi.testclient import TestClient
 
 SIGNUP = {
     "email": "grace@example.com",
-    "full_name": "Grace Hopper",
+    "username": "gracehopper",
+    "first_name": "Grace",
+    "last_name": "Hopper",
     "password": "correct-horse-battery",
 }
 
@@ -23,7 +25,8 @@ def signup(client: TestClient, **overrides) -> dict:
 
 def login(client: TestClient, email: str, password: str):
     # OAuth2 password flow: FORM body (data=), and the field is named
-    # "username" by spec even though we put an email in it.
+    # "username" by spec — we put the EMAIL in it (the account identifier);
+    # the optional public username is not a login credential.
     return client.post("/v1/auth/login", data={"username": email, "password": password})
 
 
@@ -37,14 +40,31 @@ def auth_header(client: TestClient) -> dict:
 def test_signup_creates_account_and_never_returns_credentials(client: TestClient):
     body = signup(client)
     assert body["email"] == SIGNUP["email"]
-    assert body["id"] == 1
+    assert body["username"] == SIGNUP["username"]
+    assert body["first_name"] == "Grace"
+    assert body["last_name"] == "Hopper"
     assert "password" not in body
     assert "hashed_password" not in body
+
+
+def test_signup_works_without_optional_fields(client: TestClient):
+    body = signup(client, username=None, first_name=None, last_name=None)
+    assert body["username"] is None
+    assert body["first_name"] is None
+    assert body["last_name"] is None
 
 
 def test_signup_duplicate_email_returns_409(client: TestClient):
     signup(client)
     response = client.post("/v1/auth/signup", json=SIGNUP)
+    assert response.status_code == 409
+
+
+def test_signup_taken_username_returns_409(client: TestClient):
+    signup(client)
+    response = client.post(
+        "/v1/auth/signup", json={**SIGNUP, "email": "second@example.com"}
+    )
     assert response.status_code == 409
 
 
@@ -78,7 +98,7 @@ def test_login_wrong_password_and_unknown_email_are_indistinguishable(
 
 def test_login_deactivated_account_returns_401(client: TestClient):
     user = signup(client)
-    client.patch(f"/v1/users/{user['id']}", json={"is_active": False})
+    client.patch(f"/v1/users/{user['email']}", json={"is_active": False})
     response = login(client, SIGNUP["email"], SIGNUP["password"])
     assert response.status_code == 401
 
@@ -107,15 +127,24 @@ def test_token_stops_working_when_account_is_deactivated(client: TestClient):
     """A signed token is proof of PAST login — the dependency must re-check
     the account on every request, not just trust the signature."""
     headers = auth_header(client)
-    user_id = client.get("/v1/auth/me", headers=headers).json()["id"]
-    client.patch(f"/v1/users/{user_id}", json={"is_active": False})
+    client.patch(f"/v1/users/{SIGNUP['email']}", json={"is_active": False})
     response = client.get("/v1/auth/me", headers=headers)
     assert response.status_code == 401
 
 
 def test_token_stops_working_when_account_is_deleted(client: TestClient):
     headers = auth_header(client)
-    user_id = client.get("/v1/auth/me", headers=headers).json()["id"]
-    client.delete(f"/v1/users/{user_id}")
+    client.delete(f"/v1/users/{SIGNUP['email']}")
+    response = client.get("/v1/auth/me", headers=headers)
+    assert response.status_code == 401
+
+
+def test_token_stops_working_when_email_changes(client: TestClient):
+    """The token's subject IS the email (the primary key): re-keying the
+    account orphans outstanding tokens. That's a real consequence of a
+    natural primary key — the client must log in again after an email
+    change."""
+    headers = auth_header(client)
+    client.patch(f"/v1/users/{SIGNUP['email']}", json={"email": "new@example.com"})
     response = client.get("/v1/auth/me", headers=headers)
     assert response.status_code == 401

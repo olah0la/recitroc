@@ -1,9 +1,9 @@
-import type { ID } from './common';
-
 export interface User {
-  id: ID;
-  username: string;
+  /** The email is the user's primary key — there is no numeric id. */
   email: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
   avatarUrl?: string;
 }
 

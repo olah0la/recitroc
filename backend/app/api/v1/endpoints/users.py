@@ -7,6 +7,7 @@ status codes, HTTPException, dependency injection, nested routes.
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, status
+from pydantic import EmailStr
 
 from app import crud
 from app.api.deps import DbSession, Pagination
@@ -22,10 +23,21 @@ from app.schemas import (
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-# TEACHING NOTE — Annotated path params: `Path(ge=1)` rejects /users/0 and
-# /users/-5 with an automatic 422 before the endpoint even runs, and
-# `/users/abc` is already rejected by the `int` type itself.
-UserId = Annotated[int, Path(ge=1, description="Numeric ID of the user")]
+# TEACHING NOTE — the user's email IS the primary key, so it is also the
+# resource identifier in URLs (/users/ada@example.com — the client must
+# URL-encode it). Typing the path param as EmailStr rejects /users/junk
+# with an automatic 422 before the endpoint even runs.
+UserEmail = Annotated[EmailStr, Path(description="Email of the user (URL-encoded)")]
+
+
+def _ensure_username_free(db: DbSession, username: str | None) -> None:
+    """409 if the username is taken. None (no username) is always free —
+    the unique constraint ignores NULLs."""
+    if username and crud.user.get_by_username(db, username):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Username {username!r} is already taken.",
+        )
 
 
 @router.post(
@@ -47,15 +59,17 @@ def create_user(payload: UserCreate, db: DbSession) -> UserRead:
     422 if validation fails); `db` is a dependency.
     """
     # Check-then-insert is readable, but two requests can pass the check
-    # simultaneously — the UNIQUE constraint on users.email is the real
-    # guarantee. A production version would also catch IntegrityError.
-    if crud.user.get_by_email(db, payload.email):
+    # simultaneously — the PRIMARY KEY on users.email and the UNIQUE
+    # constraint on username are the real guarantee. A production version
+    # would also catch IntegrityError.
+    if crud.user.get(db, payload.email):
         # 409 Conflict = "the request is valid but collides with current
         # state". Don't use 400 for everything; status codes are API UX.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"A user with email {payload.email!r} already exists.",
         )
+    _ensure_username_free(db, payload.username)
     return crud.user.create(db, payload)
 
 
@@ -64,9 +78,9 @@ def list_users(db: DbSession, page: Pagination) -> Page[UserRead]:
     """List users, paginated.
 
     TEACHING NOTE — response_model does double duty: it documents the
-    response in OpenAPI *and* filters the output. If User grew a
-    `hashed_password` column tomorrow, it still could never leak through
-    this endpoint, because UserRead doesn't declare it.
+    response in OpenAPI *and* filters the output. The User model DOES
+    carry a `hashed_password` column, yet it can never leak through this
+    endpoint, because UserRead doesn't declare it.
     """
     users, total = crud.user.list_(db, limit=page.limit, offset=page.offset)
     return Page(
@@ -77,10 +91,10 @@ def list_users(db: DbSession, page: Pagination) -> Page[UserRead]:
     )
 
 
-@router.get("/{user_id}", response_model=UserReadWithItems, summary="Get a user")
-def get_user(user_id: UserId, db: DbSession) -> UserReadWithItems:
+@router.get("/{email}", response_model=UserReadWithItems, summary="Get a user")
+def get_user(email: UserEmail, db: DbSession) -> UserReadWithItems:
     """Fetch a single user, including their items."""
-    user = crud.user.get_with_items(db, user_id)
+    user = crud.user.get_with_items(db, email)
     if user is None:
         # The CRUD layer returns None; translating that into an HTTP 404
         # is exactly the API layer's job.
@@ -90,44 +104,51 @@ def get_user(user_id: UserId, db: DbSession) -> UserReadWithItems:
     return user
 
 
-@router.patch("/{user_id}", response_model=UserRead, summary="Update a user")
-def update_user(user_id: UserId, payload: UserUpdate, db: DbSession) -> UserRead:
+@router.patch("/{email}", response_model=UserRead, summary="Update a user")
+def update_user(email: UserEmail, payload: UserUpdate, db: DbSession) -> UserRead:
     """Partially update a user.
 
     TEACHING NOTE — PATCH vs PUT: PATCH applies only the fields present in
     the request; PUT replaces the whole resource. Partial-update schemas
     (all fields optional) + `exclude_unset` in the CRUD layer implement
     PATCH correctly.
+
+    Changing the email here rewrites the user's PRIMARY KEY: the database
+    cascades the new value into items.owner_email (onupdate="CASCADE"),
+    and the resource's URL changes — clients should follow the email in
+    the response body.
     """
-    user = crud.user.get(db, user_id)
+    user = crud.user.get(db, email)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     if payload.email and payload.email != user.email:
-        if crud.user.get_by_email(db, payload.email):
+        if crud.user.get(db, payload.email):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"A user with email {payload.email!r} already exists.",
             )
+    if payload.username and payload.username != user.username:
+        _ensure_username_free(db, payload.username)
     return crud.user.update(db, user, payload)
 
 
 @router.delete(
-    "/{user_id}",
+    "/{email}",
     # 204 means "done, and there is nothing to say" — the response has no
     # body, so there is no response_model either.
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a user",
 )
-def delete_user(user_id: UserId, db: DbSession) -> None:
+def delete_user(email: UserEmail, db: DbSession) -> None:
     """Delete a user and (via cascade) all of their items.
 
     TEACHING NOTE — DELETE is *idempotent* in effect (the row is gone
     either way), but we still 404 on a missing user: it tells clients
-    they probably hold a stale ID, which is a bug worth surfacing.
+    they probably hold a stale identifier, which is a bug worth surfacing.
     """
-    user = crud.user.get(db, user_id)
+    user = crud.user.get(db, email)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -139,24 +160,24 @@ def delete_user(user_id: UserId, db: DbSession) -> None:
 # Nested route: items always belong to a user, and the URL encodes that.
 # ---------------------------------------------------------------------------
 @router.post(
-    "/{user_id}/items",
+    "/{email}/items",
     response_model=ItemRead,
     status_code=status.HTTP_201_CREATED,
     tags=["items"],  # shown under "items" in the docs despite living here
     summary="Create an item owned by a user",
 )
 def create_item_for_user(
-    user_id: UserId, payload: ItemCreate, db: DbSession
+    email: UserEmail, payload: ItemCreate, db: DbSession
 ) -> ItemRead:
     """Create an item owned by the given user.
 
-    TEACHING NOTE — path + body together: `user_id` comes from the URL,
+    TEACHING NOTE — path + body together: `email` comes from the URL,
     `payload` from the JSON body. The owner is taken from the URL, so a
     client can never create an item on someone else's behalf by lying in
     the body.
     """
-    if crud.user.get(db, user_id) is None:
+    if crud.user.get(db, email) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    return crud.item.create(db, payload, owner_id=user_id)
+    return crud.item.create(db, payload, owner_email=email)
