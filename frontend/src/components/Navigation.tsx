@@ -24,6 +24,9 @@ function Navigation() {
             <Link to="/swipe">Discover</Link>
           </li>
           <li>
+            <Link to="/matches">Matches</Link>
+          </li>
+          <li>
             <Link to="/messages">Messages</Link>
           </li>
           {user ? (

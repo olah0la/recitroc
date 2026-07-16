@@ -96,7 +96,9 @@ def test_swipes_are_per_user(client: TestClient):
     posting = create_posting(client, other)
 
     client.post(
-        "/v1/swipes", json={"posting_id": posting["id"], "direction": "pass"}, headers=me
+        "/v1/swipes",
+        json={"posting_id": posting["id"], "direction": "pass"},
+        headers=me,
     )
     # My verdict empties MY deck, not my friend's.
     assert deck(client, me) == []
@@ -126,7 +128,9 @@ def test_swipe_on_missing_paused_or_own_posting(client: TestClient):
     me = make_user(client, "me@example.com")
     other = make_user(client, "other@example.com")
     paused = create_posting(client, other, title="Paused")
-    client.patch(f"/v1/postings/{paused['id']}", json={"is_active": False}, headers=other)
+    client.patch(
+        f"/v1/postings/{paused['id']}", json={"is_active": False}, headers=other
+    )
     mine = create_posting(client, me, title="Mine")
 
     missing = client.post(
@@ -151,6 +155,33 @@ def test_swipe_rejects_bad_direction_with_422(client: TestClient):
     assert response.status_code == 422
 
 
+# --- deck ranking (the scored deck, end to end) -----------------------------------
+def test_deck_ranks_reciprocal_candidates_first(client: TestClient):
+    """Same city, same freshness: the offer that overlaps my NEED and
+    whose owner NEEDS my offer must beat a merely-nearby sofa."""
+    me = make_user(client, "me@example.com")
+    create_posting(client, me, kind="need", title="Mountain bike", tags=["bike"])
+    create_posting(client, me, title="Guitar lessons", tags=["guitar", "music"])
+
+    fit = make_user(client, "fit@example.com")
+    create_posting(client, fit, title="Hardtail mountain bike", tags=["bike"])
+    create_posting(
+        client,
+        fit,
+        kind="need",
+        category="service",
+        title="Guitar teacher wanted",
+        tags=["guitar"],
+    )
+
+    sofa = make_user(client, "sofa@example.com")
+    create_posting(client, sofa, title="Old sofa", tags=["furniture"])
+
+    cards = deck(client, me)
+    # Only offers appear; the reciprocal one leads.
+    assert [c["title"] for c in cards] == ["Hardtail mountain bike", "Old sofa"]
+
+
 # --- rewind ---------------------------------------------------------------------
 def test_rewind_returns_posting_to_the_deck(client: TestClient):
     me = make_user(client, "me@example.com")
@@ -158,7 +189,9 @@ def test_rewind_returns_posting_to_the_deck(client: TestClient):
     posting = create_posting(client, other)
 
     client.post(
-        "/v1/swipes", json={"posting_id": posting["id"], "direction": "pass"}, headers=me
+        "/v1/swipes",
+        json={"posting_id": posting["id"], "direction": "pass"},
+        headers=me,
     )
     assert deck(client, me) == []
 

@@ -5,15 +5,18 @@ it, so there is no offset parameter — just "give me the next N nearby
 offers I haven't judged yet".
 """
 
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from app import crud
 from app.api.deps import AsyncDbSession, CurrentUser
-from app.models import PostingKind
+from app.core.config import settings
+from app.models import PostingKind, SwipeDirection
 from app.schemas import PostingNearbyRead, PostingRead, SwipeCreate, SwipeResult
 from app.services.geo import haversine_km
+from app.services.matching import rank_candidates
 
 router = APIRouter(prefix="/swipes", tags=["swipes"])
 
@@ -38,39 +41,61 @@ async def get_deck(
     ] = 10,
     limit: Annotated[int, Query(ge=1, le=50, description="Deck size")] = 10,
 ) -> list[PostingNearbyRead]:
-    """Nearby active OFFERS the caller hasn't swiped yet, nearest first.
+    """Nearby active OFFERS the caller hasn't swiped yet, best match first.
 
-    This is the /postings/nearby query plus one extra filter: an
-    anti-join against the caller's swipes (see crud.posting.list_nearby).
+    Two stages:
+    1. SQL narrows to a bounded candidate pool — active, in radius, not
+       mine, not yet swiped (see crud.posting.list_nearby).
+    2. Python ranks that pool with the matching score: need overlap,
+       reciprocity, proximity, freshness (see services/matching.py).
     Already-judged postings never reappear — that's the deck's contract.
     """
     if current_user.latitude is None or current_user.longitude is None:
         raise _NO_LOCATION
-    postings, _ = await crud.posting.list_nearby(
+    candidates, _ = await crud.posting.list_nearby(
         db,
         latitude=current_user.latitude,
         longitude=current_user.longitude,
         radius_km=radius_km,
         exclude_owner=current_user.email,
-        limit=limit,
+        limit=settings.DECK_CANDIDATE_POOL,
         offset=0,
         kind=PostingKind.OFFER,
         exclude_swiped_by=current_user.email,
     )
+
+    distances = {
+        p.id: haversine_km(
+            current_user.latitude, current_user.longitude, p.latitude, p.longitude
+        )
+        for p in candidates
+    }
+    my_postings, _ = await crud.posting.list_by_owner(
+        db, current_user.email, limit=settings.DECK_CANDIDATE_POOL, offset=0
+    )
+    candidate_owner_needs = await crud.posting.list_active_needs_by_owners(
+        db, list({p.owner_email for p in candidates})
+    )
+    needs_by_owner: dict[str, list] = {}
+    for need in candidate_owner_needs:
+        needs_by_owner.setdefault(need.owner_email, []).append(need)
+
+    ranked = rank_candidates(
+        candidates=candidates,
+        distances_km=distances,
+        my_needs=[p for p in my_postings if p.kind == PostingKind.NEED],
+        my_offers=[p for p in my_postings if p.kind == PostingKind.OFFER],
+        owner_needs=needs_by_owner,
+        now=datetime.now(timezone.utc),
+        weights=settings.MATCH_WEIGHTS,
+    )
+
     return [
         PostingNearbyRead(
             **PostingRead.model_validate(p).model_dump(),
-            distance_km=round(
-                haversine_km(
-                    current_user.latitude,
-                    current_user.longitude,
-                    p.latitude,
-                    p.longitude,
-                ),
-                2,
-            ),
+            distance_km=round(distances[p.id], 2),
         )
-        for p in postings
+        for p in ranked[:limit]
     ]
 
 
@@ -85,8 +110,10 @@ async def create_swipe(
 ) -> SwipeResult:
     """Like or pass on a posting. Swiping again just updates the verdict.
 
-    `matched` is always false for now — the matching engine is RT-5; the
-    response shape is already the final contract.
+    A LIKE that completes a mutual like creates a Match and returns
+    `matched: true` — exactly once per pair; liking further postings of
+    an already-matched partner stays `matched: false` so the client
+    never re-celebrates an old match.
     """
     posting = await crud.posting.get(db, payload.posting_id)
     # Paused and nonexistent postings look identical here, same rule as
@@ -106,7 +133,29 @@ async def create_swipe(
         posting_id=payload.posting_id,
         direction=payload.direction,
     )
-    return SwipeResult(matched=False, match_id=None)
+
+    if payload.direction != SwipeDirection.LIKE:
+        return SwipeResult(matched=False, match_id=None)
+
+    # Mutual-like check: has the posting's owner already liked one of MY
+    # active postings? (The unique constraint on the pair backstops the
+    # race where both sides like simultaneously.)
+    their_liked_posting = await crud.swipe.find_liked_posting_of(
+        db, liker_email=posting.owner_email, owner_email=current_user.email
+    )
+    if their_liked_posting is None:
+        return SwipeResult(matched=False, match_id=None)
+    if await crud.match.get_for_pair(db, current_user.email, posting.owner_email):
+        return SwipeResult(matched=False, match_id=None)
+
+    match = await crud.match.create(
+        db,
+        email1=current_user.email,
+        posting_of_1=their_liked_posting.id,  # mine, which they liked
+        email2=posting.owner_email,
+        posting_of_2=posting.id,  # theirs, which I just liked
+    )
+    return SwipeResult(matched=True, match_id=match.id)
 
 
 @router.delete(

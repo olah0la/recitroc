@@ -216,3 +216,22 @@ export async function postSwipe(
 export async function deleteSwipe(postingId: number): Promise<void> {
   return apiFetch<void>(`/swipes/${postingId}`, { method: 'DELETE' })
 }
+
+// --- matches ------------------------------------------------------------------
+
+export type MatchStatus = 'active' | 'archived'
+
+/** A match, shaped from the current user's perspective by the backend. */
+export interface Match {
+  id: number
+  status: MatchStatus
+  created_at: string
+  partner: AuthUser
+  my_posting: Posting | null
+  their_posting: Posting | null
+}
+
+export async function fetchMatches(): Promise<Match[]> {
+  const page = await apiFetch<{ items: Match[] }>('/matches')
+  return page.items
+}

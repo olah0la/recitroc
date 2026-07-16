@@ -58,6 +58,26 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day; short-lived by design
 
+    # --- Deck scoring (services/matching.py) ---
+    # Weights are CONFIG, not code: tuning the ranking must never need a
+    # deploy. They should sum to ~1.0 so scores stay comparable over time.
+    MATCH_WEIGHT_NEED_OVERLAP: float = 0.4
+    MATCH_WEIGHT_RECIPROCITY: float = 0.3
+    MATCH_WEIGHT_PROXIMITY: float = 0.2
+    MATCH_WEIGHT_FRESHNESS: float = 0.1
+    # How many nearby candidates are scored per deck fetch (the SQL
+    # prefilter's LIMIT). Bounds the Python scoring work per request.
+    DECK_CANDIDATE_POOL: int = 100
+
+    @property
+    def MATCH_WEIGHTS(self) -> tuple[float, float, float, float]:
+        return (
+            self.MATCH_WEIGHT_NEED_OVERLAP,
+            self.MATCH_WEIGHT_RECIPROCITY,
+            self.MATCH_WEIGHT_PROXIMITY,
+            self.MATCH_WEIGHT_FRESHNESS,
+        )
+
     # External services the app talks to. URLs are configuration, not
     # code: staging can point at a mock, and no deploy is needed if a
     # provider changes hosts. Open-Meteo is free and needs no API key.

@@ -1,5 +1,6 @@
 from app.schemas.auth import Token
 from app.schemas.common import Page
+from app.schemas.match import MatchRead
 from app.schemas.posting import (
     MeetupConditions,
     PostingCreate,
@@ -18,6 +19,7 @@ from app.schemas.user import (
 
 __all__ = [
     "LocationUpdate",
+    "MatchRead",
     "SwipeCreate",
     "SwipeResult",
     "MeetupConditions",

@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Swipe, SwipeDirection
+from app.models import Posting, Swipe, SwipeDirection
 
 
 async def get(db: AsyncSession, swiper_email: str, posting_id: int) -> Swipe | None:
@@ -47,3 +47,28 @@ async def upsert(
 async def delete(db: AsyncSession, swipe: Swipe) -> None:
     await db.delete(swipe)
     await db.commit()
+
+
+async def find_liked_posting_of(
+    db: AsyncSession, *, liker_email: str, owner_email: str
+) -> Posting | None:
+    """One ACTIVE posting of owner_email that liker_email has LIKEd, if any.
+
+    This is the reciprocity probe behind matching: after I like YOUR
+    posting, the question is "have you already liked one of MINE?" — a
+    non-None answer completes the mutual like. The returned posting
+    becomes the match's other half.
+    """
+    stmt = (
+        select(Posting)
+        .join(Swipe, Swipe.posting_id == Posting.id)
+        .where(
+            Posting.owner_email == owner_email,
+            Posting.is_active,
+            Swipe.swiper_email == liker_email,
+            Swipe.direction == SwipeDirection.LIKE,
+        )
+        .order_by(Swipe.created_at.desc())
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()

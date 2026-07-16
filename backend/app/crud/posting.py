@@ -129,6 +129,25 @@ async def list_nearby(
     return postings, total
 
 
+async def list_active_needs_by_owners(
+    db: AsyncSession, owner_emails: list[str]
+) -> list[Posting]:
+    """Active NEED postings of the given owners, in one query.
+
+    Feeds the deck's reciprocity scoring: candidates' needs are compared
+    against the caller's offers. Fetched in bulk (IN clause) rather than
+    per-candidate — the classic N+1 avoidance, this time by hand.
+    """
+    if not owner_emails:
+        return []
+    stmt = select(Posting).where(
+        Posting.owner_email.in_(owner_emails),
+        Posting.kind == PostingKind.NEED,
+        Posting.is_active,
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
 async def create(
     db: AsyncSession,
     data: PostingCreate,

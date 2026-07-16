@@ -9,11 +9,14 @@ Forgetting this import is the #1 cause of "Alembic generated an empty
 migration".
 """
 
+from app.models.match import Match, MatchStatus
 from app.models.posting import Posting, PostingCategory, PostingKind
 from app.models.swipe import Swipe, SwipeDirection
 from app.models.user import User
 
 __all__ = [
+    "Match",
+    "MatchStatus",
     "Posting",
     "PostingCategory",
     "PostingKind",
