@@ -8,7 +8,15 @@ resource = new file in endpoints/ + one include_router line here.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, health, matches, postings, swipes, users
+from app.api.v1.endpoints import (
+    auth,
+    health,
+    matches,
+    messages,
+    postings,
+    swipes,
+    users,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -17,3 +25,4 @@ api_router.include_router(users.router)
 api_router.include_router(postings.router)
 api_router.include_router(swipes.router)
 api_router.include_router(matches.router)
+api_router.include_router(messages.router)

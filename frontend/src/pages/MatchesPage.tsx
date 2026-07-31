@@ -2,49 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { Box, Button, Flex, Text, VStack } from "@chakra-ui/react"
 import { useAuth } from "../context/AuthContext"
-import {
-  ApiError,
-  fetchMatches,
-  type AuthUser,
-  type Match,
-  type Posting,
-} from "../services/api"
-
-const GRADIENTS = [
-  "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
-  "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  "linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)",
-  "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
-  "linear-gradient(135deg, #96e6a1 0%, #d4fc79 100%)",
-]
-
-const TAG_EMOJI: Record<string, string> = {
-  kitchen: "☕",
-  coffee: "☕",
-  music: "🎸",
-  instruments: "🎸",
-  outdoors: "🚲",
-  sports: "🚲",
-  bike: "🚲",
-  plants: "🪴",
-  games: "🎲",
-  books: "📚",
-  electronics: "📷",
-}
-
-function emojiFor(posting: Posting | null): string {
-  if (!posting) return "🤝"
-  for (const tag of posting.tags) {
-    const hit = TAG_EMOJI[tag.toLowerCase()]
-    if (hit) return hit
-  }
-  return posting.category === "service" ? "🤝" : "📦"
-}
-
-function displayName(user: AuthUser): string {
-  return user.username || user.first_name || user.email.split("@")[0]
-}
+import { displayName, emojiFor, gradientFor } from "../lib/display"
+import { ApiError, fetchMatches, type Match } from "../services/api"
 
 function matchDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -192,7 +151,7 @@ function MatchRow({ match }: { match: Match }) {
         h="64px"
         fontSize="32px"
         borderRadius="full"
-        background={GRADIENTS[match.id % GRADIENTS.length]}
+        background={gradientFor(match.id)}
       >
         {emojiFor(match.their_posting)}
       </Flex>
@@ -216,9 +175,17 @@ function MatchRow({ match }: { match: Match }) {
             : "your posting is gone"}
         </Text>
       </Box>
-      {/* Messaging lands with RT-6; until then this is a teaser. */}
-      <Button size="sm" borderRadius="full" px="4" variant="outline" disabled>
-        Say hi (soon)
+      <Button
+        as={Link}
+        {...{ to: `/messages?match=${match.id}` }}
+        size="sm"
+        borderRadius="full"
+        px="4"
+        bg="#fd5068"
+        color="white"
+        _hover={{ bg: "#e63e57" }}
+      >
+        Say hi
       </Button>
     </Flex>
   )

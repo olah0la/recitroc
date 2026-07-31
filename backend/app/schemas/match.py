@@ -11,6 +11,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.models import MatchStatus
+from app.schemas.message import MessageRead
 from app.schemas.posting import PostingRead
 from app.schemas.user import UserRead
 
@@ -27,3 +28,8 @@ class MatchRead(BaseModel):
     # (the FK is SET NULL) — the match itself lives on.
     my_posting: PostingRead | None
     their_posting: PostingRead | None
+
+    # Conversation preview (RT-6) — what a match-list row needs to render
+    # "last message + unread badge" without a second request per match.
+    last_message: MessageRead | None = None
+    unread_count: int = 0

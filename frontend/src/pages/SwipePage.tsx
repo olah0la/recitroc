@@ -7,6 +7,7 @@ import {
   type SwipeItem,
 } from "../components/SwipeCard"
 import { useAuth } from "../context/AuthContext"
+import { emojiFor, gradientFor } from "../lib/display"
 import {
   ApiError,
   deleteSwipe,
@@ -14,37 +15,6 @@ import {
   postSwipe,
   type NearbyPosting,
 } from "../services/api"
-
-const GRADIENTS = [
-  "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
-  "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  "linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)",
-  "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
-  "linear-gradient(135deg, #96e6a1 0%, #d4fc79 100%)",
-]
-
-const TAG_EMOJI: Record<string, string> = {
-  kitchen: "☕",
-  coffee: "☕",
-  music: "🎸",
-  instruments: "🎸",
-  outdoors: "🚲",
-  sports: "🚲",
-  bike: "🚲",
-  plants: "🪴",
-  games: "🎲",
-  books: "📚",
-  electronics: "📷",
-}
-
-function emojiFor(posting: NearbyPosting): string {
-  for (const tag of posting.tags) {
-    const hit = TAG_EMOJI[tag.toLowerCase()]
-    if (hit) return hit
-  }
-  return posting.category === "service" ? "🤝" : "📦"
-}
 
 function toSwipeItem(posting: NearbyPosting): SwipeItem {
   return {
@@ -55,7 +25,7 @@ function toSwipeItem(posting: NearbyPosting): SwipeItem {
     distance: `${posting.distance_km} km away`,
     description: posting.description ?? "",
     emoji: emojiFor(posting),
-    gradient: GRADIENTS[posting.id % GRADIENTS.length],
+    gradient: gradientFor(posting.id),
     tags: posting.tags,
   }
 }
@@ -66,7 +36,10 @@ function SwipePage() {
   const [cards, setCards] = useState<NearbyPosting[]>([])
   const [history, setHistory] = useState<NearbyPosting[]>([])
   const [likes, setLikes] = useState(0)
-  const [match, setMatch] = useState<SwipeItem | null>(null)
+  // The freshly made match: which card, plus the match id the chat needs.
+  const [match, setMatch] = useState<{ item: SwipeItem; matchId: number } | null>(
+    null,
+  )
   const [state, setState] = useState<DeckState>("loading")
   const [radiusKm, setRadiusKm] = useState(10)
   const { user, initializing } = useAuth()
@@ -106,7 +79,9 @@ function SwipePage() {
     // Persist the verdict; the response says whether it made a match.
     postSwipe(posting.id, dir === "right" ? "like" : "pass")
       .then((result) => {
-        if (result.matched) setMatch(item)
+        if (result.matched && result.match_id !== null) {
+          setMatch({ item, matchId: result.match_id })
+        }
       })
       .catch(() => {
         // The optimistic UI already advanced; a rewind re-syncs if needed.
@@ -300,21 +275,32 @@ function SwipePage() {
               h="120px"
               fontSize="64px"
               borderRadius="full"
-              background={match.gradient}
+              background={match.item.gradient}
             >
-              {match.emoji}
+              {match.item.emoji}
             </Flex>
             <Text color="gray.600">
-              You and {match.owner} both want to trade the <b>{match.title}</b>.
+              You and {match.item.owner} both want to trade the{" "}
+              <b>{match.item.title}</b>.
             </Text>
             <Button
-              onClick={() => setMatch(null)}
+              as={Link}
+              {...{ to: `/messages?match=${match.matchId}` }}
               bg="#fd5068"
               color="white"
               borderRadius="full"
               px="8"
               w="100%"
               _hover={{ bg: "#e63e57" }}
+            >
+              Send a message
+            </Button>
+            <Button
+              onClick={() => setMatch(null)}
+              variant="outline"
+              borderRadius="full"
+              px="8"
+              w="100%"
             >
               Keep swiping
             </Button>

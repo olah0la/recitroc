@@ -10,6 +10,7 @@ migration".
 """
 
 from app.models.match import Match, MatchStatus
+from app.models.message import Message
 from app.models.posting import Posting, PostingCategory, PostingKind
 from app.models.swipe import Swipe, SwipeDirection
 from app.models.user import User
@@ -17,6 +18,7 @@ from app.models.user import User
 __all__ = [
     "Match",
     "MatchStatus",
+    "Message",
     "Posting",
     "PostingCategory",
     "PostingKind",

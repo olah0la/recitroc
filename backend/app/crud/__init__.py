@@ -11,6 +11,6 @@ Nothing in this package may import from `app.api` — dependencies point
 inward only (api -> crud -> models).
 """
 
-from app.crud import match, posting, swipe, user
+from app.crud import match, message, posting, swipe, user
 
-__all__ = ["match", "posting", "swipe", "user"]
+__all__ = ["match", "message", "posting", "swipe", "user"]

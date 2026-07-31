@@ -229,9 +229,48 @@ export interface Match {
   partner: AuthUser
   my_posting: Posting | null
   their_posting: Posting | null
+  last_message: Message | null
+  unread_count: number
 }
 
 export async function fetchMatches(): Promise<Match[]> {
   const page = await apiFetch<{ items: Match[] }>('/matches')
   return page.items
+}
+
+// --- messages -----------------------------------------------------------------
+
+export interface Message {
+  id: number
+  match_id: number
+  sender_email: string
+  body: string
+  created_at: string
+  read_at: string | null
+}
+
+/** Incremental fetch: pass the highest message id you already have and
+ * only newer messages come back — this is what makes polling cheap. */
+export async function fetchMessages(
+  matchId: number,
+  afterId = 0,
+): Promise<Message[]> {
+  return apiFetch<Message[]>(`/matches/${matchId}/messages?after_id=${afterId}`)
+}
+
+export async function sendMessage(
+  matchId: number,
+  body: string,
+): Promise<Message> {
+  return apiFetch<Message>(`/matches/${matchId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  })
+}
+
+export async function markMessagesRead(matchId: number): Promise<void> {
+  await apiFetch<{ marked_read: number }>(`/matches/${matchId}/read`, {
+    method: 'POST',
+  })
 }

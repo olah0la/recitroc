@@ -8,13 +8,19 @@ from fastapi import APIRouter
 
 from app import crud
 from app.api.deps import AsyncDbSession, CurrentUser, Pagination
-from app.models import Match
-from app.schemas import MatchRead, Page, PostingRead, UserRead
+from app.models import Match, Message
+from app.schemas import MatchRead, MessageRead, Page, PostingRead, UserRead
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
 
-def _as_read(match: Match, viewer_email: str) -> MatchRead:
+def _as_read(
+    match: Match,
+    viewer_email: str,
+    *,
+    last_message: Message | None = None,
+    unread_count: int = 0,
+) -> MatchRead:
     """Reshape the symmetric pair row into the viewer's perspective."""
     i_am_a = match.user_a_email == viewer_email
     partner = match.user_b if i_am_a else match.user_a
@@ -29,6 +35,10 @@ def _as_read(match: Match, viewer_email: str) -> MatchRead:
         their_posting=(
             PostingRead.model_validate(their_posting) if their_posting else None
         ),
+        last_message=(
+            MessageRead.model_validate(last_message) if last_message else None
+        ),
+        unread_count=unread_count,
     )
 
 
@@ -36,12 +46,28 @@ def _as_read(match: Match, viewer_email: str) -> MatchRead:
 async def list_matches(
     current_user: CurrentUser, db: AsyncDbSession, page: Pagination
 ) -> Page[MatchRead]:
-    """The caller's matches, newest first, shaped from their side."""
+    """The caller's matches, newest first, shaped from their side.
+
+    Each match carries its conversation preview (last message + unread
+    count) so the messages screen renders its list pane from this one
+    call — see crud.message.preview_for_matches for how that stays cheap.
+    """
     matches, total = await crud.match.list_for_user(
         db, current_user.email, limit=page.limit, offset=page.offset
     )
+    previews = await crud.message.preview_for_matches(
+        db, [m.id for m in matches], current_user.email
+    )
     return Page(
-        items=[_as_read(m, current_user.email) for m in matches],
+        items=[
+            _as_read(
+                m,
+                current_user.email,
+                last_message=previews.get(m.id, (None, 0))[0],
+                unread_count=previews.get(m.id, (None, 0))[1],
+            )
+            for m in matches
+        ],
         total=total,
         limit=page.limit,
         offset=page.offset,

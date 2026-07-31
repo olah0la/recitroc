@@ -12,6 +12,10 @@ def _ordered_pair(email1: str, email2: str) -> tuple[str, str]:
     return (email1, email2) if email1 < email2 else (email2, email1)
 
 
+async def get(db: AsyncSession, match_id: int) -> Match | None:
+    return await db.get(Match, match_id)
+
+
 async def get_for_pair(db: AsyncSession, email1: str, email2: str) -> Match | None:
     user_a, user_b = _ordered_pair(email1, email2)
     stmt = select(Match).where(
